@@ -1,3 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, no-useless-assignment --
+   Deno edge function. It runs on the InsForge Deno runtime and is type-checked
+   there at deploy, not by the browser app's TypeScript or ESLint. The single
+   any is the OpenAI chat-params passthrough in chat(). */
+
 // HIVE agent-run: the role-parametrized muscle of the swarm.
 //
 // One Deno function runs every agent role with a different prompt. Body:

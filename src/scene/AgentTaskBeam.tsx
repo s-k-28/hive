@@ -1,3 +1,6 @@
+/* eslint-disable react-hooks/immutability -- the line buffer, instance matrices,
+   and reused control points are mutated in useFrame every frame; that imperative
+   typed-array write is the required, performance-critical r3f idiom. */
 /**
  * Beam from an agent orb to the task it has claimed. The agent endpoint moves
  * every frame (the orb is orbiting), so unlike the static FlowEdge this samples
@@ -57,13 +60,9 @@ export function AgentTaskBeam({
     new THREE.Vector3(),
   ]);
 
-  // The static beam: one persistent THREE.Line with its own geometry/material.
-  const lineRef = useRef<{
-    obj: THREE.Line;
-    geo: THREE.BufferGeometry;
-    mat: THREE.LineBasicMaterial;
-  }>(null);
-  if (lineRef.current === null) {
+  // The static beam: one persistent THREE.Line with its own geometry/material,
+  // built once with useMemo so it is render-safe to read in the JSX below.
+  const line = useMemo(() => {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array((LINE_SEGMENTS + 1) * 3), 3));
     const m = new THREE.LineBasicMaterial({
@@ -76,8 +75,8 @@ export function AgentTaskBeam({
     const obj = new THREE.Line(g, m);
     obj.visible = false;
     obj.frustumCulled = false;
-    lineRef.current = { obj, geo: g, mat: m };
-  }
+    return { obj, geo: g, mat: m };
+  }, []);
 
   // Deterministic phase spread (no Math.random in render).
   const offsets = useMemo(
@@ -94,7 +93,7 @@ export function AgentTaskBeam({
     const t = state.clock.elapsedTime;
     const crv = curve.current!;
     const dum = dummy.current!;
-    const ln = lineRef.current!;
+    const ln = line;
 
     // Agent endpoint from orbit math; midpoint arced upward.
     orbitPosition(orbit, t, crv.points[0]);
@@ -137,7 +136,7 @@ export function AgentTaskBeam({
 
   return (
     <group>
-      <primitive object={lineRef.current.obj} />
+      <primitive object={line.obj} />
       <instancedMesh ref={mesh} args={[undefined, undefined, count]} frustumCulled={false} visible={false}>
         <sphereGeometry args={[1, 8, 8]} />
         <meshBasicMaterial color={particleColor} toneMapped={false} />

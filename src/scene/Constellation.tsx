@@ -1,3 +1,6 @@
+/* eslint-disable react-hooks/immutability -- the star color buffer is mutated
+   in useFrame every frame to twinkle and bloom; that imperative typed-array
+   write is the required, performance-critical react-three-fiber idiom. */
 /**
  * The memory constellation. A single THREE.Points cloud, MAX 2000 stars, one
  * draw call. Positions are pre-allocated once on a flattened sphere shell and
