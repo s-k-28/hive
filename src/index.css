@@ -1,0 +1,62 @@
+:root {
+  --bg: #05070f;
+  --ink: #e8edf7;
+  --ink-dim: rgba(232, 237, 247, 0.55);
+  --gold: #f5b94a;
+  --cyan: #22d3ee;
+  --magenta: #e34fd0;
+  --green: #9af57a;
+  --red: #ff2244;
+  --glass-bg: rgba(10, 15, 30, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --radius: 14px;
+  --font-display: 'Geist', 'Inter', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-display);
+  overflow: hidden;
+}
+
+.app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.app > canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/* Overlay root: transparent to pointer events except interactive children */
+.overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.overlay .interactive {
+  pointer-events: auto;
+}
+
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+}
