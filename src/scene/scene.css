@@ -13,7 +13,7 @@
   border-radius: 999px;
   box-shadow: 0 0 14px color-mix(in srgb, var(--orb, #fff) 35%, transparent);
   transform: translateY(22px);
-  opacity: 0.42;
+  opacity: 0;
   transition: opacity 0.25s ease, transform 0.25s ease;
   user-select: none;
 }

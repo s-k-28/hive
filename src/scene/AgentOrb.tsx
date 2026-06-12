@@ -39,6 +39,10 @@ export function AgentOrb({ orbit }: AgentOrbProps) {
   const ring = useRef<THREE.Mesh>(null);
   const ringMat = useRef<THREE.MeshBasicMaterial>(null);
   const [labelOn, setLabelOn] = useState(false);
+  // Show the name chip only on hover or when this agent is camera-focused, so
+  // the idle scene stays clean. This is the one reactive read in the orb; it
+  // re-renders just on focus change (six orbs, rare), never per frame.
+  const focused = useSwarm((s) => s.focusAgent === orbit.name);
 
   const baseColor = useMemo(() => new THREE.Color(orbit.color), [orbit.color]);
   const haloPhases = useMemo(
@@ -173,7 +177,7 @@ export function AgentOrb({ orbit }: AgentOrbProps) {
 
       {/* Name chip */}
       <Html center distanceFactor={11} pointerEvents="none" zIndexRange={[20, 0]}>
-        <div className={`orb-label${labelOn ? ' on' : ''}`} style={{ '--orb': orbit.color } as React.CSSProperties}>
+        <div className={`orb-label${labelOn || focused ? ' on' : ''}`} style={{ '--orb': orbit.color } as React.CSSProperties}>
           {orbit.name}
         </div>
       </Html>

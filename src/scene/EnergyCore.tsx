@@ -85,7 +85,9 @@ export function EnergyCore() {
     const failed = status === 'failed';
 
     const d = drive.current;
-    damp(d, 'ignite', active ? 1 : status === 'complete' ? 0.85 : failed ? 0.25 : 0.35, 0.5, dt);
+    // Idle floor sits high enough that the dormant core still anchors the hero
+    // shot before any mission starts. It lifts to 1 once a mission is live.
+    damp(d, 'ignite', active ? 1 : status === 'complete' ? 0.85 : failed ? 0.25 : 0.6, 0.5, dt);
     damp(d, 'fail', failed ? 1 : 0, 0.6, dt);
 
     // One-shot completion burst, latched off the store's burstAt timestamp.
