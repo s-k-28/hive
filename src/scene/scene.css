@@ -1,0 +1,24 @@
+/* In-world drei <Html> label chips. The overlay DOM lives in src/ui. */
+
+.orb-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  padding: 4px 8px;
+  white-space: nowrap;
+  color: var(--ink);
+  background: rgba(5, 7, 15, 0.55);
+  border: 1px solid color-mix(in srgb, var(--orb, #fff) 45%, transparent);
+  border-radius: 999px;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--orb, #fff) 35%, transparent);
+  transform: translateY(22px);
+  opacity: 0.42;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  user-select: none;
+}
+
+.orb-label.on {
+  opacity: 1;
+  transform: translateY(20px) scale(1.04);
+}

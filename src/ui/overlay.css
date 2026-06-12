@@ -1,0 +1,793 @@
+/* =========================================================================
+   HIVE overlay. Glassmorphic DOM above the 3D scene.
+   Reuses the design tokens from index.css (--bg, --ink, --gold, --glass-*,
+   --radius, --font-display, --font-mono). Pointer-events model is inherited
+   from .overlay / .interactive in index.css: the root ignores pointer events,
+   marked children opt back in.
+   ========================================================================= */
+
+.overlay {
+  --pad: clamp(18px, 2.4vw, 30px);
+  --hairline: rgba(255, 255, 255, 0.1);
+  --glow: 0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 18px 50px -22px rgba(0, 0, 0, 0.7);
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+/* Shared glass treatment, a touch richer than the base .glass helper. */
+.overlay .glass,
+.overlay .lg,
+.overlay .mc,
+.overlay .mc-bar {
+  box-shadow: var(--glow);
+}
+
+/* ---- Header ------------------------------------------------------------- */
+
+.hd {
+  position: absolute;
+  top: var(--pad);
+  left: var(--pad);
+  max-width: 30rem;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hd-mark-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hd-glyph {
+  filter: drop-shadow(0 0 10px rgba(245, 185, 74, 0.45));
+  flex: none;
+}
+
+.hd-mark {
+  font-size: clamp(26px, 3vw, 38px);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  color: var(--ink);
+  text-shadow: 0 0 24px rgba(245, 185, 74, 0.22);
+}
+
+.hd-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+  background: rgba(154, 245, 122, 0.06);
+  border: 1px solid rgba(154, 245, 122, 0.22);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.hd-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: hd-breathe 2.6s ease-in-out infinite;
+}
+
+.hd-tagline {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink-dim);
+  max-width: 26rem;
+}
+
+.hd-signin {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 7px 15px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease,
+    transform 0.18s ease;
+}
+
+.hd-signin:hover {
+  border-color: rgba(245, 185, 74, 0.5);
+  background: rgba(245, 185, 74, 0.08);
+}
+
+.hd-signin:active {
+  transform: translateY(1px);
+}
+
+/* ---- Mission console (center) ------------------------------------------ */
+
+.mc-wrap {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.mc {
+  width: min(560px, 92vw);
+  padding: 26px 26px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.mc-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mc-title {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+
+.mc-sub {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+
+.mc-input {
+  width: 100%;
+  resize: none;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: rgba(5, 7, 15, 0.5);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  padding: 13px 14px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.mc-input::placeholder {
+  color: rgba(232, 237, 247, 0.32);
+}
+
+.mc-input:focus {
+  outline: none;
+  border-color: rgba(245, 185, 74, 0.55);
+  box-shadow: 0 0 0 3px rgba(245, 185, 74, 0.12);
+}
+
+.mc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: -4px;
+}
+
+.mc-chip {
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-dim);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.mc-chip:hover {
+  color: var(--ink);
+  border-color: rgba(34, 211, 238, 0.45);
+  background: rgba(34, 211, 238, 0.07);
+}
+
+.mc-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.mc-hint {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: rgba(232, 237, 247, 0.34);
+}
+
+.mc-launch {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #1a1206;
+  background: linear-gradient(180deg, #ffce6b 0%, var(--gold) 100%);
+  border: none;
+  border-radius: 10px;
+  padding: 11px 22px;
+  cursor: pointer;
+  box-shadow: 0 8px 22px -8px rgba(245, 185, 74, 0.6);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+}
+
+.mc-launch:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px -8px rgba(245, 185, 74, 0.7);
+  filter: brightness(1.04);
+}
+
+.mc-launch:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.mc-launch:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.4) brightness(0.7);
+  box-shadow: none;
+}
+
+/* Collapsed mission bar (top-center) */
+
+.mc-bar-wrap {
+  position: absolute;
+  top: var(--pad);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(620px, calc(100vw - 2 * var(--pad)));
+}
+
+.mc-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 9px 9px 16px;
+  border-radius: 999px;
+}
+
+.mc-bar-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(232, 237, 247, 0.4);
+  flex: none;
+}
+
+.mc-bar-goal {
+  font-size: 13px;
+  color: var(--ink);
+  max-width: 46ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-bar-new {
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-dim);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 6px 13px;
+  cursor: pointer;
+  flex: none;
+  transition: color 0.16s ease, border-color 0.16s ease;
+}
+
+.mc-bar-new:hover {
+  color: var(--ink);
+  border-color: var(--glass-border);
+}
+
+/* ---- Status pill (shared) ---------------------------------------------- */
+
+.status-pill {
+  --pill: var(--cyan);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--pill);
+  background: color-mix(in srgb, var(--pill) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pill) 38%, transparent);
+  border-radius: 999px;
+}
+
+.status-pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pill);
+  box-shadow: 0 0 8px var(--pill);
+}
+
+/* Running and planning quietly pulse. Terminal states hold steady. */
+.status-pill[data-status='running'] .status-pill-dot,
+.status-pill[data-status='planning'] .status-pill-dot,
+.status-pill[data-status='assembling'] .status-pill-dot {
+  animation: pill-pulse 1.5s ease-in-out infinite;
+}
+
+/* ---- Mission log (right) ----------------------------------------------- */
+
+.lg {
+  position: absolute;
+  top: calc(var(--pad) + 64px);
+  right: var(--pad);
+  width: min(380px, 34vw);
+  max-height: min(56vh, 560px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 15px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.lg-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(232, 237, 247, 0.5);
+}
+
+.lg-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(232, 237, 247, 0.35);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+
+.lg-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 6px 12px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+.lg-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.lg-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 3px;
+}
+
+.lg-line {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink);
+  display: flex;
+  gap: 8px;
+  padding-right: 9px;
+  animation: line-in 0.32s ease both;
+}
+
+.lg-agent {
+  flex: none;
+  font-weight: 600;
+  opacity: 0.92;
+}
+
+.lg-text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+/* Color-code by LogLine.kind. Agent name keeps its own role color. */
+.lg-line[data-kind='thought'] .lg-text {
+  color: var(--ink);
+}
+
+.lg-line[data-kind='status'] .lg-text {
+  color: var(--cyan);
+}
+
+.lg-line[data-kind='error'] .lg-text {
+  color: var(--red);
+}
+
+.lg-line[data-kind='artifact'] .lg-text {
+  color: var(--green);
+}
+
+/* ---- Swarm roster (bottom-left) ---------------------------------------- */
+
+.rs {
+  position: absolute;
+  left: var(--pad);
+  bottom: var(--pad);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: min(540px, 60vw);
+}
+
+.rs-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-dim);
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 7px 13px 7px 11px;
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease,
+    transform 0.18s ease;
+}
+
+.rs-pill:hover {
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+
+.rs-pill[data-focused='true'] {
+  color: var(--ink);
+  border-color: rgba(245, 185, 74, 0.6);
+  background: rgba(245, 185, 74, 0.1);
+}
+
+.rs-name {
+  letter-spacing: 0.01em;
+}
+
+.rs-dot {
+  --dot: var(--cyan);
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--dot);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--dot) 70%, transparent);
+  flex: none;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+/* Live visual state micro-animations. */
+.rs-pill[data-visual='thinking'] .rs-dot {
+  animation: dot-pulse 1.05s ease-in-out infinite;
+}
+
+.rs-pill[data-visual='complete'] {
+  border-color: rgba(154, 245, 122, 0.5);
+}
+
+.rs-pill[data-visual='complete'] .rs-dot {
+  animation: dot-flash 0.7s ease-out;
+}
+
+.rs-pill[data-visual='error'] {
+  border-color: rgba(255, 34, 68, 0.55);
+  color: var(--ink);
+}
+
+.rs-pill[data-visual='error'] .rs-dot {
+  background: var(--red);
+  box-shadow: 0 0 10px var(--red);
+  animation: dot-shake 0.4s ease;
+}
+
+/* ---- Progress + artifact (bottom-center) ------------------------------- */
+
+.pg {
+  position: absolute;
+  left: 50%;
+  bottom: var(--pad);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 9px 9px 16px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  box-shadow: var(--glow);
+  max-width: calc(100vw - 2 * var(--pad));
+}
+
+.pg-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 190px;
+}
+
+.pg-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.pg-label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(232, 237, 247, 0.45);
+}
+
+.pg-count {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.pg-sep {
+  color: rgba(232, 237, 247, 0.35);
+  margin: 0 2px;
+}
+
+.pg-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.pg-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--cyan), var(--green));
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+  transition: width 0.55s cubic-bezier(0.25, 0.8, 0.3, 1);
+}
+
+.pg-track[data-failed='true'] .pg-fill {
+  background: linear-gradient(90deg, var(--gold), var(--red));
+}
+
+.pg-artifact {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--ink);
+  background: rgba(154, 245, 122, 0.08);
+  border: 1px solid rgba(154, 245, 122, 0.32);
+  border-radius: 10px;
+  padding: 8px 12px;
+  flex: none;
+  transition: border-color 0.18s ease, background 0.18s ease,
+    transform 0.18s ease;
+  animation: artifact-in 0.4s ease both;
+}
+
+.pg-artifact:hover {
+  border-color: rgba(154, 245, 122, 0.6);
+  background: rgba(154, 245, 122, 0.14);
+  transform: translateY(-1px);
+}
+
+.pg-artifact-name {
+  font-weight: 500;
+}
+
+.pg-artifact-action {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--green);
+  padding-left: 8px;
+  margin-left: 2px;
+  border-left: 1px solid rgba(154, 245, 122, 0.25);
+}
+
+/* ---- Entrance animations ----------------------------------------------- */
+
+.hd,
+.lg,
+.rs,
+.pg {
+  animation: zone-in 0.55s ease both;
+}
+
+.lg {
+  animation-delay: 0.08s;
+}
+
+.rs {
+  animation-delay: 0.14s;
+}
+
+.pg {
+  animation-delay: 0.2s;
+}
+
+.mc {
+  animation: console-in 0.5s cubic-bezier(0.25, 0.85, 0.3, 1) both;
+}
+
+@keyframes zone-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The mission bar is centered with translateX, keep that on the animated end. */
+.mc-bar-wrap {
+  animation: bar-in 0.45s ease both;
+}
+
+@keyframes bar-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes console-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes line-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes artifact-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ---- Continuous state animations --------------------------------------- */
+
+@keyframes hd-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes pill-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes dot-pulse {
+  0%,
+  100% {
+    transform: scale(0.82);
+    box-shadow: 0 0 4px color-mix(in srgb, var(--dot) 60%, transparent);
+  }
+  50% {
+    transform: scale(1.12);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--dot) 90%, transparent);
+  }
+}
+
+@keyframes dot-flash {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 4px var(--dot);
+  }
+  35% {
+    transform: scale(1.5);
+    box-shadow: 0 0 16px var(--dot);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 6px var(--dot);
+  }
+}
+
+@keyframes dot-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-2px);
+  }
+  75% {
+    transform: translateX(2px);
+  }
+}
+
+/* ---- Reduced motion: keep state cues, drop entrance + idle motion ------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay .hd,
+  .overlay .lg,
+  .overlay .rs,
+  .overlay .pg,
+  .overlay .mc,
+  .overlay .mc-bar-wrap,
+  .overlay .lg-line,
+  .overlay .pg-artifact {
+    animation: none;
+  }
+
+  .overlay .hd-badge-dot,
+  .overlay .status-pill-dot,
+  .overlay .rs-pill[data-visual='thinking'] .rs-dot {
+    animation: none;
+  }
+
+  .overlay .pg-fill {
+    transition: none;
+  }
+}
