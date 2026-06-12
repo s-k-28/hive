@@ -18,6 +18,14 @@ Most agent demos hide the agents behind a chat box. HIVE turns the swarm inside 
 
 There is no separate backend server. The agents are InsForge edge functions. Their reasoning is the InsForge AI gateway. Their memory is pgvector. Their nervous system is InsForge realtime. The whole thing is hosted on InsForge.
 
+## Why this matters
+
+AI agents are doing more real knowledge work every month: research, analysis, planning, first drafts. The thing holding teams back is not capability, it is trust. You get an answer from a black box with no way to see how it was reached, whether it was checked, or where it came from. That opacity is the main reason capable agents do not get adopted for work that matters, and it is why an entire category of AI observability tooling now exists.
+
+HIVE is the opposite of a black box. You watch every agent reason in plain language, see which earlier findings each one recalls from shared memory, and watch a critic reject weak work and send it back for a rewrite before anything ships. The full trail is persisted in Postgres and the deliverable is a real file you download. It targets the work people already hand to AI, a go-to-market plan, a competitive brief, a launch plan, a technical outline, but produced by a team that shows its work and checks itself, so you can trust the result enough to build on it.
+
+The 3D mission control is how that transparency is made tangible. The swarm thinking and the swarm rendering are the same event stream, so seeing the work is not a feature bolted on the side, it is the architecture.
+
 ## How HIVE uses every InsForge primitive
 
 | Primitive | Role in HIVE |
