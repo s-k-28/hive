@@ -2,11 +2,11 @@
 
 # HIVE
 
-### Your backend is alive.
+### The live control tower for AI agents.
 
-Give a goal to a swarm of AI agents that live entirely inside InsForge. Watch them plan, execute, review their own work, and ship the result, in real time, rendered as a cinematic 3D mission control.
+Run a team of AI agents you can see, stop, and steer in real time. Give them a goal, watch them plan, execute, review their own work, and ship the result, rendered as a cinematic 3D mission control, with a live cost meter, hard safety gates, and a flight recorder for every decision. It all runs entirely inside InsForge.
 
-Built for the InsForge Hack, June 2026. Target track: Most Technically Impressive.
+Built for the InsForge Hack, June 2026.
 
 </div>
 
@@ -14,29 +14,35 @@ Built for the InsForge Hack, June 2026. Target track: Most Technically Impressiv
 
 ## The one-liner
 
-Most agent demos hide the agents behind a chat box. HIVE turns the swarm inside out. The database is the message bus, the task queue, and the shared memory. Every time an agent has a thought, claims a task, stores a memory, or finishes work, it writes a row to Postgres, and that write is the broadcast. You see the swarm think because the swarm thinking and the swarm rendering are the same event.
+AI agents cannot be trusted in production because they run away (a documented $47K loop), cause irreversible damage (the Replit agent wiped a live database despite a freeze), fail silently on long tasks, and give no causal trace of why they acted. 74% of production agents get rolled back, and the EU AI Act's human-oversight rules are enforceable in August 2026.
+
+HIVE is the answer: a governed, observable, steerable control tower. The database is the message bus, the task queue, the shared memory, and the steering plane. Every time an agent has a thought, claims a task, spends money, or trips a safety gate, it writes a row to Postgres, and that write is the broadcast. You see the swarm think, and you stop or steer it, because the swarm thinking and the swarm rendering are the same event stream.
 
 There is no separate backend server. The agents are InsForge edge functions. Their reasoning is the InsForge AI gateway. Their memory is pgvector. Their nervous system is InsForge realtime. The whole thing is hosted on InsForge.
 
 ## Why this matters
 
-AI agents are doing more real knowledge work every month: research, analysis, planning, first drafts. The thing holding teams back is not capability, it is trust. You get an answer from a black box with no way to see how it was reached, whether it was checked, or where it came from. That opacity is the main reason capable agents do not get adopted for work that matters, and it is why an entire category of AI observability tooling now exists.
+AI agents do more real knowledge work every month, but they cannot be trusted in production. They run away and burn money, they take irreversible actions no one approved, they fail silently on long tasks, and they give no causal trace of why they acted. That is why most production agents still get rolled back, and why human-oversight rules are becoming law.
 
-HIVE is the opposite of a black box. You watch every agent reason in plain language, see which earlier findings each one recalls from shared memory, and watch a critic reject weak work and send it back for a rewrite before anything ships. The full trail is persisted in Postgres and the deliverable is a real file you download. It targets the work people already hand to AI, a go-to-market plan, a competitive brief, a launch plan, a technical outline, but produced by a team that shows its work and checks itself, so you can trust the result enough to build on it.
+HIVE makes an agent swarm safe to run. Three subsystems sit on top of the engine:
 
-The 3D mission control is how that transparency is made tangible. The swarm thinking and the swarm rendering are the same event stream, so seeing the work is not a feature bolted on the side, it is the architecture.
+- **The gate engine (circuit breaker).** Every mission carries a cost budget, a step cap, and a risk gate on high-impact steps, all enforced in the orchestrator before any work is dispatched. Trip a limit and the swarm pauses and asks you, instead of burning money or doing damage.
+- **The steering control plane.** From the cockpit you pause and resume, raise the budget, kill a task, approve or deny a gated action, and inject a constraint the agents re-plan around, all live, mid-run.
+- **The causal inspector (flight recorder).** Click any node to see why it ran (its dependencies and recalled memories), what it produced (rendered markdown), and what it cost, plus a live cost meter and the final downloadable artifact.
+
+You still watch every agent reason in plain language, see which earlier findings each one recalls from shared memory, and watch a critic reject weak work and send it back before anything ships. Now you can also stop it, steer it, and audit it. The 3D mission control is how that control is made tangible: the swarm thinking and the swarm rendering are the same event stream, so oversight is not bolted on the side, it is the architecture.
 
 ## How HIVE uses every InsForge primitive
 
 | Primitive | Role in HIVE |
 | --- | --- |
-| Postgres | `missions`, `tasks` (a dependency DAG), `agents`, `events` (append only log), `memories` |
-| Edge functions | `orchestrator` (a cron tick that assigns ready tasks) and `agent-run` (claim, reason, act, report) |
-| AI gateway | All agent reasoning and all embeddings, through the OpenAI compatible project endpoint |
+| Postgres | `missions` (with budget, spend, step count, guidance), `tasks` (a dependency DAG with cost and a risk gate), `events` (append only log), `memories`, `interventions` (the steering queue) |
+| Edge functions | `orchestrator` (a race-safe tick that drains interventions, enforces the gates, then assigns ready tasks) and `agent-run` (claim, reason, act, report, account for cost) |
+| AI gateway | All agent reasoning and all embeddings, through the OpenAI compatible project endpoint, with per-step token cost metered live |
 | pgvector | Shared swarm memory. Agents store what they learn, later agents recall it by meaning |
-| Realtime | A database trigger publishes every `events` row to `mission:{id}`. The 3D scene reacts live |
-| Auth | Missions are scoped to the signed in user |
-| Storage | The final deliverable is written to a bucket and downloaded straight from the UI |
+| Realtime | A database trigger publishes every `events` row to `mission:{id}`. The 3D scene, the cost meter, and the gate prompt all react live |
+| Auth | Missions are scoped to the signed in user, with a "your missions" history that replays a past run |
+| Storage | The final deliverable is written to a bucket and opened, copied, or downloaded straight from the UI |
 | Hosting | The site itself is deployed on InsForge |
 
 This is the point of the project: not one primitive used well, but the whole platform composed into a single living system.
@@ -88,6 +94,16 @@ Six agents, four roles, all executed by the same `agent-run` edge function with 
 - **Critic** (magenta). Reviews completed work. Can bounce a task back with feedback, which the scene shows as a red pulse traveling back to the task node.
 - **Assembler** (green). Composes the accepted task outputs into the final artifact and uploads it to Storage.
 
+## The control tower
+
+Three subsystems turn the swarm from a black box into something you can govern, observe, and steer, all enforced in the backend and surfaced in the cockpit.
+
+- **Gate engine (the circuit breaker).** Each mission carries a cost budget and a step cap, and the planner tags one high-impact step as a risk. The orchestrator checks all three at the top of every tick, before any dispatch. Hit the budget or the step cap and the mission pauses; reach the risk step and it holds for explicit approval. The energy core visibly strains as the budget is spent.
+- **Steering control plane (live human control).** Every cockpit action (pause, resume, raise budget, kill a task, approve or deny a gated step, inject a constraint) inserts an `interventions` row and kicks the orchestrator, which drains the queue and applies each one with guarded, idempotent updates. Injected constraints are appended to the mission guidance and the agents re-plan around them.
+- **Causal inspector (the flight recorder).** Click any task node to see why it ran (dependencies and recalled memories), its rendered-markdown output, its cost, and the ordered chain of events that touched it. A live cost meter and step counter sit in the control bar, and the final artifact opens in-app to copy or download.
+
+The signature moment is simple: a gate trips, the swarm stops and asks, and you steer it forward, all in real time, all rendered in the 3D scene.
+
 ## The 3D mission control
 
 react-three-fiber, drei, and postprocessing. One scene, three signature animations driven entirely by swarm events.
@@ -113,7 +129,7 @@ Then open the app with the simulation flag to watch a full scripted mission run 
 http://localhost:5173/?sim
 ```
 
-The simulation replays a real mission through the exact same event pipeline the live backend uses, so what you see in `?sim` is what the live swarm produces.
+The simulation replays a real mission through the exact same event pipeline the live backend uses, so what you see in `?sim` is what the live swarm produces. It climbs the cost meter, trips the risk gate so the swarm stops and asks, and resumes when approved, all offline. Every steering control (pause, resume, raise budget, kill, approve, deny, inject) works in the simulation too.
 
 ### Live mode (on InsForge)
 
@@ -141,18 +157,18 @@ hive/
   src/
     scene/        3D mission control (r3f): core, agent orbs, task graph, constellation, effects
     state/        zustand stores fed by realtime events, plus the local simulation
-    ui/           glass overlay: mission console, live log, roster, progress, artifact
-    lib/          InsForge client and the swarm protocol shared with the functions
+    ui/           glass overlay: console, control bar, gate prompt, inspector, log, roster, artifact, auth, history
+    lib/          InsForge client, auth + steering helpers, and the swarm protocol shared with the functions
   functions/
-    orchestrator/ the cron tick that assigns ready tasks
-    agent-run/    claim, reason via the AI gateway, report, store memory
-  migrations/     SQL: tables, RLS, the realtime publish trigger, pgvector
+    orchestrator  the tick: drains interventions, enforces the gates, assigns ready tasks
+    agent-run     claim, reason via the AI gateway, report, store memory, account for cost
+  migrations/     SQL: tables, RLS, the realtime publish trigger, pgvector, the control tower schema
   docs/           research brief, r3f playbook, InsForge cheat sheet, deploy guide
 ```
 
 ## Judging dimensions, addressed directly
 
-- **Technical execution.** Eight InsForge primitives composed into one coherent system, a race safe tick orchestrator, pgvector memory recall, trigger based realtime, all tested.
-- **Design quality.** A custom 3D interface and a hand built glass UI, no component library, no template aesthetic.
-- **Potential impact.** Transparent delegation. You hand a goal to a team of agents and watch them work, with receipts, instead of trusting a black box.
-- **Idea quality.** The backend is the product. The thing that streams the agents to you is the same thing that runs them.
+- **Technical execution.** The whole InsForge platform composed into one coherent system, a race safe and idempotent tick orchestrator that drains a steering queue and enforces three kinds of gate, per-step cost accounting, pgvector memory recall, trigger based realtime, all tested.
+- **Design quality.** A custom 3D interface and a hand built glass cockpit, no component library, no template aesthetic, with instant legible feedback for every control.
+- **Potential impact.** Agents you can trust in production. You hand a goal to a team of agents and watch them work, with a budget, hard gates, live steering, and a full causal record, instead of trusting a black box.
+- **Idea quality.** The backend is the product. The thing that streams the agents to you is the same thing that runs them, governs them, and lets you steer them.
