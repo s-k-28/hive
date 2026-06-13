@@ -145,10 +145,14 @@ export function runSimulation(goal = 'Draft a launch plan for Hive'): Simulation
   for (const [i, [delay, event]] of script(goal).entries()) {
     timers.push(
       setTimeout(() => {
+        // Allocate the seq at fire time as lastSeq + 1 rather than a fixed index,
+        // so manual offline steering (which uses the same allocator) can slot in
+        // between scripted events without poisoning the reducer's seq dedupe.
+        const seq = useSwarm.getState().lastSeq + 1;
         const record: SwarmEventRecord = {
           id: `sim-${i}`,
           missionId: mission.id,
-          seq: i + 1,
+          seq,
           event,
           createdAt: new Date().toISOString(),
         };
@@ -166,17 +170,19 @@ export function runSimulation(goal = 'Draft a launch plan for Hive'): Simulation
 // same reducer, with a monotonic seq beyond the script's range.
 // ---------------------------------------------------------------------------
 
-let simSteerSeq = 100_000;
+let simSteerSeq = 0;
 
 function steer(event: SwarmEvent): void {
   const state = useSwarm.getState();
   const mission = state.mission;
   if (!mission) return;
   simSteerSeq += 1;
+  // Use lastSeq + 1 so a steering event always advances past whatever the
+  // script has applied so far, keeping the reducer's monotonic dedupe happy.
   state.applyEvent({
     id: `sim-steer-${simSteerSeq}`,
     missionId: mission.id,
-    seq: simSteerSeq,
+    seq: state.lastSeq + 1,
     event,
     createdAt: new Date().toISOString(),
   });

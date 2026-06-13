@@ -1,14 +1,18 @@
+import type { AuthUser } from '../lib/mission';
+
 /**
- * Wordmark, tagline, and platform badge. Top-left. First thing the judge sees
- * in the demo video, so it stays unmistakable and restrained.
+ * Wordmark, tagline, and platform badge. Top-left. The account and history
+ * controls live here too, wired by the Overlay to InsForge auth and the user's
+ * mission history.
  */
 
 interface HeaderProps {
-  /** Presentational only. Wired to InsForge auth by the host. */
-  onSignIn?: () => void;
+  user: AuthUser | null;
+  onOpenAuth: () => void;
+  onOpenHistory: () => void;
 }
 
-export function Header({ onSignIn }: HeaderProps) {
+export function Header({ user, onOpenAuth, onOpenHistory }: HeaderProps) {
   return (
     <header className="hd">
       <div className="hd-mark-row">
@@ -22,14 +26,17 @@ export function Header({ onSignIn }: HeaderProps) {
         </span>
       </div>
       <p className="hd-tagline">
-        Delegate a goal. Watch a team of AI agents plan, execute, review, and
-        deliver, live.
+        The live control tower for AI agents. Delegate a goal, watch a team of
+        agents work, and stop or steer them in real time.
       </p>
-      {onSignIn ? (
-        <button type="button" className="hd-signin interactive" onClick={onSignIn}>
-          Sign in
+      <div className="hd-controls">
+        <button type="button" className="hd-signin interactive" onClick={onOpenHistory}>
+          Missions
         </button>
-      ) : null}
+        <button type="button" className="hd-signin interactive" onClick={onOpenAuth}>
+          {user ? (user.name ?? user.email ?? 'Account') : 'Sign in'}
+        </button>
+      </div>
     </header>
   );
 }

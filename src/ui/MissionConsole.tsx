@@ -16,11 +16,16 @@ export function MissionConsole() {
   const mission = useSwarm((s) => s.mission);
   const [goal, setGoal] = useState('');
   const [expanded, setExpanded] = useState(false);
+  // Default budget for a new mission, in dollars. Empty means no cap.
+  const [budget, setBudget] = useState('0.50');
 
   const launch = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
-    startMission(trimmed).catch((err) => {
+    const dollars = parseFloat(budget);
+    const budgetCents =
+      Number.isFinite(dollars) && dollars > 0 ? Math.round(dollars * 100) : null;
+    startMission(trimmed, { budgetCents }).catch((err) => {
       console.error('[hive] mission launch failed', err);
     });
     setExpanded(false);
@@ -99,7 +104,19 @@ export function MissionConsole() {
         </div>
 
         <div className="mc-actions">
-          <span className="mc-hint">Cmd + Enter</span>
+          <label className="mc-budget" title="Cost budget. The swarm pauses and asks you when it is reached.">
+            <span className="mc-budget-label">Budget</span>
+            <span className="mc-budget-prefix">$</span>
+            <input
+              className="mc-budget-input"
+              type="number"
+              min="0"
+              step="0.25"
+              value={budget}
+              placeholder="none"
+              onChange={(e) => setBudget(e.target.value)}
+            />
+          </label>
           <button
             type="button"
             className="mc-launch"

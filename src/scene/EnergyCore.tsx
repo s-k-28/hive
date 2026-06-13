@@ -71,7 +71,7 @@ export function EnergyCore() {
   const group = useRef<THREE.Group>(null);
 
   // Smoothed activity drivers, kept across frames in a mutable ref bag.
-  const drive = useRef({ ignite: 0, fail: 0, burst: 0, lastBurst: 0 });
+  const drive = useRef({ ignite: 0, fail: 0, burst: 0, lastBurst: 0, strain: 0, paused: 0 });
 
   const sparkleColor = useMemo(() => new THREE.Color('#f5b94a'), []);
 
@@ -83,12 +83,24 @@ export function EnergyCore() {
     // Target activity: 0 when idle/no mission, 1 when a mission is live.
     const active = status === 'running' || status === 'planning' || status === 'assembling';
     const failed = status === 'failed';
+    const paused = status === 'paused' || status === 'awaiting_input';
+
+    // Cost strain: fraction of budget spent (0..1). The core visibly works
+    // harder as the budget is consumed, so cost is legible in the hero element.
+    const mission = s.mission;
+    const strainTarget =
+      mission && mission.budgetCents && mission.budgetCents > 0
+        ? Math.min(1, mission.spentCents / mission.budgetCents)
+        : 0;
 
     const d = drive.current;
     // Idle floor sits high enough that the dormant core still anchors the hero
     // shot before any mission starts. It lifts to 1 once a mission is live.
-    damp(d, 'ignite', active ? 1 : status === 'complete' ? 0.85 : failed ? 0.25 : 0.6, 0.5, dt);
+    damp(d, 'ignite', active ? 1 : status === 'complete' ? 0.85 : failed ? 0.25 : paused ? 0.5 : 0.6, 0.5, dt);
     damp(d, 'fail', failed ? 1 : 0, 0.6, dt);
+    damp(d, 'strain', strainTarget, 0.4, dt);
+    // Paused: the core dims and calms while held, signalling the swarm is stopped.
+    damp(d, 'paused', paused ? 1 : 0, 0.4, dt);
 
     // One-shot completion burst, latched off the store's burstAt timestamp.
     const burstAt = s.fx.burstAt;
@@ -102,12 +114,13 @@ export function EnergyCore() {
     const fast = 0.5 + 0.5 * Math.sin(t * 4.0);
 
     // Core: molten icosahedron. Emissive rides activity + a slow breath, then
-    // spikes hard on the completion burst.
+    // spikes hard on the completion burst. Cost strain adds a hotter, more
+    // agitated surface as the budget is consumed.
     if (coreMat.current) {
       const m = coreMat.current;
-      const baseEmissive = 1.4 + d.ignite * (2.4 + pulse * 1.6) + d.burst * 9.0;
+      const baseEmissive = 1.4 + d.ignite * (2.4 + pulse * 1.6) + d.strain * 2.2 + d.burst * 9.0;
       damp(m, 'emissiveIntensity', baseEmissive, 0.15, dt);
-      m.distort = 0.28 + d.ignite * 0.16 + fast * 0.05 * d.ignite + d.burst * 0.2;
+      m.distort = 0.28 + d.ignite * 0.16 + fast * 0.05 * d.ignite + d.strain * 0.12 + d.burst * 0.2;
       _coreColor.copy(CORE_HOT).lerp(CORE_FAIL, d.fail);
       m.emissive.copy(_coreColor);
     }
@@ -129,9 +142,11 @@ export function EnergyCore() {
       light.current.color.copy(_coreColor);
     }
 
-    // Whole assembly turns slowly, faster when ignited.
+    // Whole assembly turns slowly, faster when ignited, and noticeably slower
+    // when paused so the held swarm reads as stopped, not dead.
     if (group.current) {
-      group.current.rotation.y += dt * (0.08 + d.ignite * 0.12);
+      const speed = (0.08 + d.ignite * 0.12) * (1 - d.paused * 0.7);
+      group.current.rotation.y += dt * speed;
     }
   });
 

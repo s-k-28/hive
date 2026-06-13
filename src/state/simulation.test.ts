@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { runSimulation } from './simulation';
+import {
+  runSimulation,
+  simApproveGate,
+  simInjectNote,
+  simPause,
+  simResume,
+} from './simulation';
 import { useSwarm } from './swarm';
 import type { Task } from '../lib/types';
 
@@ -88,6 +94,30 @@ describe('runSimulation', () => {
     const handle = runSimulation();
     vi.advanceTimersByTime(40_000);
     expect(() => handle.stop()).not.toThrow();
+    expect(useSwarm.getState().mission?.status).toBe('complete');
+  });
+
+  it('offline pause then resume mid-run still reaches completion', () => {
+    // Regression: steering events must keep the reducer seq monotonic so they
+    // do not poison the dedupe and drop the rest of the scripted run.
+    runSimulation();
+    vi.advanceTimersByTime(12_000);
+    simPause();
+    expect(useSwarm.getState().mission?.status).toBe('paused');
+    simResume();
+    expect(['running', 'assembling']).toContain(useSwarm.getState().mission?.status);
+    vi.advanceTimersByTime(40_000);
+    expect(useSwarm.getState().mission?.status).toBe('complete');
+  });
+
+  it('offline inject plus manual approve clears the gate and completes', () => {
+    runSimulation();
+    vi.advanceTimersByTime(22_000);
+    expect(useSwarm.getState().mission?.status).toBe('awaiting_input');
+    simInjectNote('Keep it under one page');
+    simApproveGate('task-plan');
+    expect(useSwarm.getState().gate).toBeNull();
+    vi.advanceTimersByTime(40_000);
     expect(useSwarm.getState().mission?.status).toBe('complete');
   });
 });

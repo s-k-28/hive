@@ -28,7 +28,10 @@ export function Scene() {
   // Esc clears focus. Keydown is a DOM concern, handled here on the window.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') useSwarm.getState().setFocus(null);
+      if (e.key === 'Escape') {
+        useSwarm.getState().setFocus(null);
+        useSwarm.getState().setFocusTask(null);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -41,8 +44,11 @@ export function Scene() {
       shadows={false}
       camera={{ position: [0, 4, 14], fov: 45 }}
       frameloop="always"
-      // Clicking empty space (no mesh hit) deselects the focused agent.
-      onPointerMissed={() => useSwarm.getState().setFocus(null)}
+      // Clicking empty space (no mesh hit) deselects the focused agent or task.
+      onPointerMissed={() => {
+        useSwarm.getState().setFocus(null);
+        useSwarm.getState().setFocusTask(null);
+      }}
     >
       <color attach="background" args={['#05070f']} />
 
