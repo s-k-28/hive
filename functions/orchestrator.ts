@@ -1,15 +1,19 @@
 // HIVE orchestrator: the tick / brain of the swarm.
 //
 // Invoked by (a) the browser once, right after creating a mission, (b) the
-// agent-run function after each step to advance the tick, and (c) a 1 minute
-// cron heartbeat as a safety net. Every invocation is one idempotent,
-// race-safe tick. Body: { missionId }.
+// browser again after each steering intervention (approve a gate, resume, etc.),
+// and (c) a 1 minute cron heartbeat as a safety net. Body: { missionId }.
 //
-// Idempotency and race-safety are achieved with guarded conditional UPDATEs
-// (atomic claims) rather than read-then-write, so two overlapping ticks can
-// never double-dispatch the same unit of work. Each transition documents its
-// guard inline. Failed cron runs are not retried by the platform, which is fine
-// because a later tick re-derives all pending work from table state.
+// Execution model (important): on InsForge Deno Subhosting a called function only
+// runs while the caller awaits its request; a fire-and-forget call is dropped.
+// So the orchestrator AWAITS every agent-run it dispatches, and drives the whole
+// mission in a bounded loop within a single invocation, rather than relying on
+// the callee to call back. One invocation advances the mission as far as it can,
+// then returns when the mission pauses at a gate, completes, fails, or the pass
+// cap is reached. The browser's initial kick and its post-intervention kicks,
+// plus the cron sweep, re-invoke to continue across pauses or a timeout. Work so
+// far is always persisted, and every transition is a guarded atomic UPDATE, so
+// re-invocation is idempotent and race-safe.
 //
 // One file per function deploy: a tiny shared helper block is inlined below and
 // duplicated in agent-run.ts. Keep the two copies in sync.
@@ -59,16 +63,11 @@ async function emitEvent(
   if (error) console.error("emitEvent failed", type, error);
 }
 
-// Dispatch a call to another function on the project. The function route is
-// public, so we authenticate with the shared WORKER_TOKEN header.
-//
-// Delivery vs blocking: on Deno Subhosting an isolate can be torn down once the
-// handler returns, which would drop a plain fire-and-forget fetch. So we AWAIT
-// the request only long enough to guarantee the bytes are transmitted, then
-// abort waiting for the (long, AI-bound) response. The callee has already
-// received the request and runs to completion in its own isolate. This keeps
-// the tick short without losing the dispatch. DISPATCH_WAIT_MS is the grace
-// window; tune via env if the platform needs longer to accept a connection.
+// Dispatch a call to another function and AWAIT it fully. On InsForge Deno
+// Subhosting the callee only runs while the caller awaits the request, so we must
+// await the response (the callee finishes its work and returns), bounded by a
+// generous safety timeout against a genuinely hung callee. The orchestrator drives
+// the mission in a loop, so callees never call back.
 async function dispatch(
   path: string,
   body: Record<string, unknown>,
@@ -79,23 +78,17 @@ async function dispatch(
     console.error("FUNCTIONS_BASE_URL not set; cannot dispatch", path);
     return;
   }
-  const waitMs = Number(Deno.env.get("DISPATCH_WAIT_MS") ?? "2500");
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), waitMs);
+  const timeoutMs = Number(Deno.env.get("DISPATCH_TIMEOUT_MS") ?? "90000");
   try {
-    await fetch(`${base}/${path}`, {
+    const res = await fetch(`${base}/${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-worker-token": token },
       body: JSON.stringify(body),
-      signal: controller.signal,
+      signal: AbortSignal.timeout(timeoutMs),
     });
+    if (!res.ok) console.error("dispatch non-ok", path, res.status);
   } catch (e) {
-    // AbortError is expected (we deliberately stop waiting for the response).
-    if (!(e instanceof DOMException && e.name === "AbortError")) {
-      console.error("dispatch error", path, e);
-    }
-  } finally {
-    clearTimeout(timer);
+    console.error("dispatch error", path, e instanceof Error ? e.message : String(e));
   }
 }
 
@@ -356,11 +349,11 @@ export default async function (req: Request): Promise<Response> {
   }
   const db = admin();
 
-  // No missionId: this is the cron heartbeat acting as a sweep. Re-tick every
-  // non-terminal mission so a dropped ping can never strand one. Held states
-  // (paused, awaiting_input) are included so a pending intervention still gets
-  // drained even if the browser's direct invoke was dropped; the tick consumes
-  // interventions first, then returns early if the mission is still held.
+  // No missionId: cron heartbeat acting as a sweep. dispatch awaits each now, so
+  // the sweep genuinely drives every non-terminal mission forward (a missed
+  // browser kick or a prior timeout cannot strand one). Held states are included
+  // so a pending intervention still drains; the per-mission tick returns early if
+  // it is still held after draining.
   if (!missionId) {
     const { data: live } = await db.database
       .from("missions")
@@ -371,24 +364,14 @@ export default async function (req: Request): Promise<Response> {
     return json({ ok: true, swept: ids.length });
   }
 
-  // 1. Load mission. Terminal states short-circuit (idempotent): a stray cron
-  //    tick or late agent-run ping after completion does nothing.
-  const { data: missions, error: mErr } = await db.database
-    .from("missions")
-    .select("id, status, budget_cents, spent_cents, step_count, max_steps, guidance")
-    .eq("id", missionId)
-    .limit(1);
-  if (mErr) return json({ ok: false, error: mErr.message }, 500);
-  let mission = (missions?.[0] as MissionRow | undefined) ?? null;
-  if (!mission) return json({ ok: false, error: "mission not found" }, 404);
-  if (mission.status === "complete" || mission.status === "failed") {
-    return json({ ok: true, dispatched: [], note: "terminal" });
-  }
-
-  const dispatched: string[] = [];
-
-  // 2. Load tasks for this mission once; all decisions below derive from this
-  //    snapshot plus guarded UPDATEs.
+  const loadMission = async (): Promise<MissionRow | null> => {
+    const { data } = await db.database
+      .from("missions")
+      .select("id, status, budget_cents, spent_cents, step_count, max_steps, guidance")
+      .eq("id", missionId)
+      .limit(1);
+    return (data?.[0] as MissionRow | undefined) ?? null;
+  };
   const loadTasks = async (): Promise<TaskRow[]> => {
     const { data } = await db.database
       .from("tasks")
@@ -397,263 +380,232 @@ export default async function (req: Request): Promise<Response> {
       .order("order_index", { ascending: true });
     return (data ?? []) as TaskRow[];
   };
-  let tasks = await loadTasks();
 
-  // 2a. Steering control plane: consume pending interventions oldest first,
-  //     mark each applied, and apply its effect. The browser inserts a row then
-  //     invokes this function once so the effect lands immediately; the cron
-  //     sweep is the backstop. Applying mutates mission/task state in the DB, so
-  //     we re-load the mission and tasks afterward to tick on fresh state.
-  const applied = await consumeInterventions(db, missionId, mission, tasks);
-  if (applied > 0) {
-    const { data: refreshed } = await db.database
-      .from("missions")
-      .select("id, status, budget_cents, spent_cents, step_count, max_steps, guidance")
-      .eq("id", missionId)
-      .limit(1);
-    mission = (refreshed?.[0] as MissionRow | undefined) ?? mission;
-    tasks = await loadTasks();
+  const dispatched: string[] = [];
+  const MAX_PASSES = Number(Deno.env.get("ORCH_MAX_PASSES") ?? "24");
+
+  // Drain any pending interventions once up front (the browser invokes this right
+  // after inserting one). Applying mutates mission/task state; the loop below
+  // re-loads on every pass, so it always ticks on fresh state.
+  {
+    const mission = await loadMission();
+    if (!mission) return json({ ok: false, error: "mission not found" }, 404);
+    const tasks = await loadTasks();
+    await consumeInterventions(db, missionId, mission, tasks);
   }
 
-  // 2b. If the mission is now held or terminal, do nothing further this tick.
-  //     A tick during a pause or an awaiting-input hold is a no-op beyond having
-  //     drained interventions above (which may have resumed it; if so we fall
-  //     through). This keeps pause genuinely stop-the-world and idempotent.
-  if (
-    mission.status === "paused" ||
-    mission.status === "awaiting_input" ||
-    mission.status === "complete" ||
-    mission.status === "failed"
-  ) {
-    return json({ ok: true, dispatched, note: mission.status });
-  }
-
-  // 2c. Budget gate. If a budget is set and spend has reached it, pause and ask
-  //     the human rather than burning more money. Guarded flip so the
-  //     gate_tripped event fires at most once.
-  if (mission.budget_cents != null && mission.spent_cents >= mission.budget_cents) {
-    const { data: flipped } = await db.database
-      .from("missions")
-      .update({ status: "paused" })
-      .eq("id", missionId)
-      .eq("status", mission.status)
-      .select();
-    if (flipped && flipped.length > 0) {
-      await emitEvent(db, missionId, "gate_tripped", { kind: "budget", taskId: null });
+  for (let pass = 0; pass < MAX_PASSES; pass++) {
+    const mission = await loadMission();
+    if (!mission) return json({ ok: false, error: "mission not found" }, 404);
+    if (mission.status === "complete" || mission.status === "failed") {
+      return json({ ok: true, dispatched, note: "terminal" });
     }
-    return json({ ok: true, dispatched, note: "budget_gate" });
-  }
-
-  // 2d. Step gate. If a step cap is set and reached, pause and ask the human.
-  if (mission.max_steps != null && mission.step_count >= mission.max_steps) {
-    const { data: flipped } = await db.database
-      .from("missions")
-      .update({ status: "paused" })
-      .eq("id", missionId)
-      .eq("status", mission.status)
-      .select();
-    if (flipped && flipped.length > 0) {
-      await emitEvent(db, missionId, "gate_tripped", { kind: "steps", taskId: null });
+    // Held: a pause or awaiting-input hold is stop-the-world. We already drained
+    // interventions above; if one resumed it, the status here is no longer held
+    // and we fall through.
+    if (mission.status === "paused" || mission.status === "awaiting_input") {
+      return json({ ok: true, dispatched, note: mission.status });
     }
-    return json({ ok: true, dispatched, note: "step_gate" });
-  }
 
-  // 2e. Defensive termination. A failed task can never become accepted, so the
-  //     mission can never complete. Fail it terminally. The agent-run failure
-  //     path already does this in its own isolate; this is the belt-and-suspenders
-  //     for any failed task that reaches a tick (for example via the sweep). The
-  //     conditional UPDATE guard makes the mission_failed emit fire at most once.
-  if (tasks.some((t) => t.status === "failed")) {
-    const { data: flipped } = await db.database
-      .from("missions")
-      .update({ status: "failed" })
-      .eq("id", missionId)
-      .eq("status", mission.status) // atomic: only flip from the observed status
-      .select();
-    if (flipped && flipped.length > 0) {
-      const failed = tasks.find((t) => t.status === "failed");
-      await emitEvent(db, missionId, "mission_failed", {
-        reason: `Task ${failed?.id ?? "?"} failed`,
-      });
-    }
-    return json({ ok: true, dispatched: [], note: "failed" });
-  }
+    const tasks = await loadTasks();
 
-  // 3. First-tick bootstrap. Guard: zero events for this mission. Emitting the
-  //    roster and mission_started exactly once populates the scene before any
-  //    planning. The hard guard against a second planner is the planner's own
-  //    atomic planning -> running flip (see agent-run.ts), so even if two ticks
-  //    both observed zero events in the same sub-second window (very unlikely
-  //    given the invocation pattern), at most one planner actually plans. A
-  //    duplicated mission_started / agent_spawned is cosmetically harmless: the
-  //    frontend reducer keys on monotonic seq and re-applying agent_spawned just
-  //    re-sets an orb to idle.
-  if (tasks.length === 0) {
-    const { count, error: cErr } = await db.database
-      .from("events")
-      .select("id", { count: "exact", head: true })
-      .eq("mission_id", missionId);
-    if (cErr) return json({ ok: false, error: cErr.message }, 500);
-
-    if ((count ?? 0) === 0) {
-      // mission_started carries the goal; load it now (kept out of the hot path
-      // above to avoid selecting goal text on every tick).
-      const { data: goalRows } = await db.database
+    // Budget gate: spend reached the budget, pause and ask the human.
+    if (mission.budget_cents != null && mission.spent_cents >= mission.budget_cents) {
+      const { data: flipped } = await db.database
         .from("missions")
-        .select("goal")
+        .update({ status: "paused" })
         .eq("id", missionId)
-        .limit(1);
-      const goal = (goalRows?.[0]?.goal as string | undefined) ?? "";
-      await emitEvent(db, missionId, "mission_started", { goal });
-      for (const member of ROSTER) {
-        await emitEvent(db, missionId, "agent_spawned", {
-          agent: member.name,
-          role: member.role,
-        });
-      }
-    }
-
-    // Dispatch the planner only while still in planning. The planner re-checks
-    // and atomically claims (planning -> running) before doing any work.
-    if (mission.status === "planning") {
-      await dispatch("agent-run", { role: "planner", missionId });
-      dispatched.push("planner");
-    }
-    return json({ ok: true, dispatched });
-  }
-
-  // 4. Claim every ready pending task. A task is ready when all of its
-  //    depends_on slugs name an accepted task. Killed tasks are terminal and
-  //    excluded from the readiness check (a killed dependency neither blocks nor
-  //    feeds its dependents), so a kill never strands the rest of the graph. The
-  //    claim is an atomic UPDATE guarded by status = 'pending'; only the tick
-  //    whose UPDATE actually changed the row proceeds, so a task can never be
-  //    handed to two workers.
-  const accepted = new Set(
-    tasks.filter((t) => t.status === "accepted").map((t) => t.id),
-  );
-  const killed = new Set(
-    tasks.filter((t) => t.status === "killed").map((t) => t.id),
-  );
-  // Workers already occupied this tick (running) so we round-robin the rest.
-  const busy = new Set(
-    tasks
-      .filter((t) => t.status === "running" && t.assignee)
-      .map((t) => t.assignee as string),
-  );
-  let rr = 0;
-  const nextWorker = (): string => {
-    // Prefer a free worker; if all three are busy, fall back to round-robin
-    // (the claim guard still prevents double work, this only labels the orb).
-    for (const name of WORKER_NAMES) {
-      if (!busy.has(name)) {
-        busy.add(name);
-        return name;
-      }
-    }
-    const name = WORKER_NAMES[rr % WORKER_NAMES.length];
-    rr += 1;
-    return name;
-  };
-
-  for (const task of tasks) {
-    if (task.status !== "pending") continue;
-    const ready = task.depends_on.every(
-      (dep) => accepted.has(dep) || killed.has(dep),
-    );
-    if (!ready) continue;
-
-    // 5. Risk gate. A high-impact task must be approved by a human before a
-    //    worker runs it. When about to dispatch a worker for a risk task that is
-    //    not yet approved, hold the whole mission: flip to awaiting_input
-    //    (guarded so the gate fires at most once) and stop this tick without
-    //    dispatching. The human approves (sets risk_approved, resumes) or denies
-    //    (kills the task) via an intervention, and the next tick proceeds.
-    if (task.risk && !task.risk_approved) {
-      const { data: held } = await db.database
-        .from("missions")
-        .update({ status: "awaiting_input" })
-        .eq("id", missionId)
-        .eq("status", "running") // guard: only the first tick trips the gate
+        .eq("status", mission.status)
         .select();
-      if (held && held.length > 0) {
-        await emitEvent(db, missionId, "gate_tripped", {
-          kind: "risk",
-          taskId: task.id,
-        });
+      if (flipped && flipped.length > 0) {
+        await emitEvent(db, missionId, "gate_tripped", { kind: "budget", taskId: null });
       }
-      return json({ ok: true, dispatched, note: "risk_gate" });
+      return json({ ok: true, dispatched, note: "budget_gate" });
     }
 
-    const worker = nextWorker();
-    const { data: claimed, error: claimErr } = await db.database
-      .from("tasks")
-      .update({ status: "running", assignee: worker })
-      .eq("mission_id", missionId)
-      .eq("id", task.id)
-      .eq("status", "pending") // race guard: only the first claimer wins
-      .select();
-    if (claimErr) {
-      console.error("claim failed", task.id, claimErr);
-      continue;
-    }
-    if (!claimed || claimed.length === 0) continue; // lost the race; skip
-
-    await emitEvent(db, missionId, "task_claimed", {
-      taskId: task.id,
-      agent: worker,
-    });
-    await dispatch("agent-run", { role: "worker", missionId, taskId: task.id });
-    dispatched.push(`worker:${task.id}`);
-  }
-
-  // 6. Dispatch the critic for every task awaiting review. The critic itself
-  //    atomically transitions review -> accepted / pending and only emits if it
-  //    won that transition, so dispatching once per review task per tick is
-  //    idempotent: a second critic invocation finds status != 'review' and
-  //    no-ops. This keeps the orchestrator stateless about critic claims.
-  for (const task of tasks) {
-    if (task.status !== "review") continue;
-    await dispatch("agent-run", { role: "critic", missionId, taskId: task.id });
-    dispatched.push(`critic:${task.id}`);
-  }
-
-  // 7. Terminal sweep. When no task is still runnable (every task is accepted or
-  //    killed), the mission is done deciding. If at least one task is accepted,
-  //    claim assembly atomically (running -> assembling) and dispatch the
-  //    assembler, which composes from accepted tasks only. If every task was
-  //    killed (nothing to assemble), fail the mission terminally. Both flips are
-  //    guarded so they fire at most once.
-  const runnable = tasks.filter(
-    (t) => t.status !== "accepted" && t.status !== "killed",
-  );
-  const anyAccepted = tasks.some((t) => t.status === "accepted");
-  if (tasks.length > 0 && runnable.length === 0 && mission.status === "running") {
-    if (anyAccepted) {
-      const { data: claimed } = await db.database
+    // Step gate: step cap reached, pause and ask the human.
+    if (mission.max_steps != null && mission.step_count >= mission.max_steps) {
+      const { data: flipped } = await db.database
         .from("missions")
-        .update({ status: "assembling" })
+        .update({ status: "paused" })
         .eq("id", missionId)
-        .eq("status", "running") // guard: only one tick flips running -> assembling
+        .eq("status", mission.status)
         .select();
-      if (claimed && claimed.length > 0) {
-        await dispatch("agent-run", { role: "assembler", missionId });
-        dispatched.push("assembler");
+      if (flipped && flipped.length > 0) {
+        await emitEvent(db, missionId, "gate_tripped", { kind: "steps", taskId: null });
       }
-    } else {
+      return json({ ok: true, dispatched, note: "step_gate" });
+    }
+
+    // Defensive termination: a failed task can never become accepted, so fail the
+    // mission terminally (the agent-run failure path also does this in-isolate).
+    if (tasks.some((t) => t.status === "failed")) {
       const { data: flipped } = await db.database
         .from("missions")
         .update({ status: "failed" })
         .eq("id", missionId)
-        .eq("status", "running")
+        .eq("status", mission.status)
         .select();
       if (flipped && flipped.length > 0) {
+        const failed = tasks.find((t) => t.status === "failed");
         await emitEvent(db, missionId, "mission_failed", {
-          reason: "All tasks were killed; nothing to assemble.",
+          reason: `Task ${failed?.id ?? "?"} failed`,
         });
       }
+      return json({ ok: true, dispatched, note: "failed" });
+    }
+
+    // Bootstrap: no tasks yet. Emit mission_started + the roster exactly once
+    // (guard: zero events), then dispatch and await the planner, which creates the
+    // task rows. Loop to the next pass to claim the first workers on fresh state.
+    if (tasks.length === 0) {
+      const { count } = await db.database
+        .from("events")
+        .select("id", { count: "exact", head: true })
+        .eq("mission_id", missionId);
+      if ((count ?? 0) === 0) {
+        const { data: goalRows } = await db.database
+          .from("missions")
+          .select("goal")
+          .eq("id", missionId)
+          .limit(1);
+        const goal = (goalRows?.[0]?.goal as string | undefined) ?? "";
+        await emitEvent(db, missionId, "mission_started", { goal });
+        for (const member of ROSTER) {
+          await emitEvent(db, missionId, "agent_spawned", {
+            agent: member.name,
+            role: member.role,
+          });
+        }
+      }
+      if (mission.status === "planning") {
+        await dispatch("agent-run", { role: "planner", missionId });
+        dispatched.push("planner");
+        continue; // planner created the tasks; re-load and proceed
+      }
+      return json({ ok: true, dispatched, note: "no-tasks" });
+    }
+
+    // Claim every ready pending task. Ready = all depends_on are accepted or
+    // killed (a killed dependency neither blocks nor feeds). The risk gate holds
+    // the mission for a high-impact task before any worker runs it. Claims are
+    // atomic (guarded by status = 'pending'); only the winner dispatches.
+    const accepted = new Set(tasks.filter((t) => t.status === "accepted").map((t) => t.id));
+    const killed = new Set(tasks.filter((t) => t.status === "killed").map((t) => t.id));
+    const busy = new Set(
+      tasks
+        .filter((t) => t.status === "running" && t.assignee)
+        .map((t) => t.assignee as string),
+    );
+    let rr = 0;
+    const nextWorker = (): string => {
+      for (const name of WORKER_NAMES) {
+        if (!busy.has(name)) {
+          busy.add(name);
+          return name;
+        }
+      }
+      const name = WORKER_NAMES[rr % WORKER_NAMES.length];
+      rr += 1;
+      return name;
+    };
+
+    const work: Promise<void>[] = [];
+
+    let gated = false;
+    for (const task of tasks) {
+      if (task.status !== "pending") continue;
+      const ready = task.depends_on.every((dep) => accepted.has(dep) || killed.has(dep));
+      if (!ready) continue;
+
+      if (task.risk && !task.risk_approved) {
+        const { data: held } = await db.database
+          .from("missions")
+          .update({ status: "awaiting_input" })
+          .eq("id", missionId)
+          .eq("status", "running")
+          .select();
+        if (held && held.length > 0) {
+          await emitEvent(db, missionId, "gate_tripped", { kind: "risk", taskId: task.id });
+        }
+        gated = true;
+        break;
+      }
+
+      const worker = nextWorker();
+      const { data: claimed, error: claimErr } = await db.database
+        .from("tasks")
+        .update({ status: "running", assignee: worker })
+        .eq("mission_id", missionId)
+        .eq("id", task.id)
+        .eq("status", "pending")
+        .select();
+      if (claimErr) {
+        console.error("claim failed", task.id, claimErr);
+        continue;
+      }
+      if (!claimed || claimed.length === 0) continue; // lost the race
+
+      await emitEvent(db, missionId, "task_claimed", { taskId: task.id, agent: worker });
+      // Dispatch the worker in parallel with its siblings; awaited below.
+      work.push(dispatch("agent-run", { role: "worker", missionId, taskId: task.id }));
+      dispatched.push(`worker:${task.id}`);
+    }
+    if (gated) {
+      await Promise.all(work);
+      return json({ ok: true, dispatched, note: "risk_gate" });
+    }
+
+    // Critics for every task awaiting review, in parallel. Each critic atomically
+    // transitions review -> accepted / pending, so a duplicate critic no-ops.
+    for (const task of tasks) {
+      if (task.status !== "review") continue;
+      work.push(dispatch("agent-run", { role: "critic", missionId, taskId: task.id }));
+      dispatched.push(`critic:${task.id}`);
+    }
+
+    // Terminal sweep: when nothing is still runnable, assemble (if any task was
+    // accepted) or fail (if everything was killed). Guarded flips fire once.
+    const runnable = tasks.filter((t) => t.status !== "accepted" && t.status !== "killed");
+    const anyAccepted = tasks.some((t) => t.status === "accepted");
+    let assemblerDispatched = false;
+    if (tasks.length > 0 && runnable.length === 0 && mission.status === "running") {
+      if (anyAccepted) {
+        const { data: claimed } = await db.database
+          .from("missions")
+          .update({ status: "assembling" })
+          .eq("id", missionId)
+          .eq("status", "running")
+          .select();
+        if (claimed && claimed.length > 0) {
+          work.push(dispatch("agent-run", { role: "assembler", missionId }));
+          dispatched.push("assembler");
+          assemblerDispatched = true;
+        }
+      } else {
+        const { data: flipped } = await db.database
+          .from("missions")
+          .update({ status: "failed" })
+          .eq("id", missionId)
+          .eq("status", "running")
+          .select();
+        if (flipped && flipped.length > 0) {
+          await emitEvent(db, missionId, "mission_failed", {
+            reason: "All tasks were killed; nothing to assemble.",
+          });
+        }
+        await Promise.all(work);
+        return json({ ok: true, dispatched, note: "failed" });
+      }
+    }
+
+    // Run this pass's dispatched agent-runs to completion, then loop on fresh
+    // state. If nothing was dispatched, there is no progress to make right now.
+    await Promise.all(work);
+    if (work.length === 0 && !assemblerDispatched) {
+      return json({ ok: true, dispatched, note: "idle" });
     }
   }
 
-  return json({ ok: true, dispatched });
+  return json({ ok: true, dispatched, note: "max_passes" });
 }

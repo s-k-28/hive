@@ -308,27 +308,26 @@ export default async function (req: Request): Promise<Response> {
   const db = admin();
 
   try {
+    // Each role does one unit of work and returns. The orchestrator awaits this
+    // call and drives the next step in its own loop, so agent-run never calls
+    // back (a fire-and-forget ping would be dropped by the runtime anyway).
     switch (role) {
       case "planner":
         await runPlanner(db, missionId);
-        await pingOrchestrator(missionId);
         return json({ ok: true, role });
 
       case "worker":
         if (!taskId) return json({ ok: false, error: "taskId required" }, 400);
         await runWorker(db, missionId, taskId);
-        await pingOrchestrator(missionId);
         return json({ ok: true, role });
 
       case "critic":
         if (!taskId) return json({ ok: false, error: "taskId required" }, 400);
         await runCritic(db, missionId, taskId);
-        await pingOrchestrator(missionId);
         return json({ ok: true, role });
 
       case "assembler":
         await runAssembler(db, missionId);
-        // terminal: do not ping the orchestrator.
         return json({ ok: true, role });
 
       default:
