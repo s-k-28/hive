@@ -21,7 +21,7 @@ describe('runSimulation', () => {
 
   it('drives a mission to a fully accepted, complete terminal state', () => {
     runSimulation('Draft a launch plan');
-    // Fire every scheduled event (the script tops out near 26s).
+    // Fire every scheduled event (the script tops out near 28s).
     vi.advanceTimersByTime(40_000);
 
     const s = useSwarm.getState();
@@ -34,6 +34,32 @@ describe('runSimulation', () => {
     expect(s.artifact?.name).toBe('launch-plan.md');
     expect(s.fx.burstAt).not.toBeNull();
     expect(s.log.at(-1)?.text).toContain('Mission complete');
+  });
+
+  it('climbs the cost meter and clears the gate by the end', () => {
+    runSimulation();
+    vi.advanceTimersByTime(40_000);
+    const s = useSwarm.getState();
+    // Spend accrued via budget_updated events, under the demo budget.
+    expect(s.mission?.spentCents).toBeGreaterThan(0);
+    expect(s.mission?.spentCents).toBeLessThanOrEqual(s.mission?.budgetCents ?? 0);
+    expect(s.mission?.stepCount).toBeGreaterThan(0);
+    // The risk gate fired mid-run but is resolved by completion.
+    expect(s.gate).toBeNull();
+  });
+
+  it('fires exactly one risk gate that holds then resumes mid-run', () => {
+    runSimulation();
+    // Advance to just after the gate trips (21.4s) but before the approval.
+    vi.advanceTimersByTime(22_000);
+    let s = useSwarm.getState();
+    expect(s.mission?.status).toBe('awaiting_input');
+    expect(s.gate).toMatchObject({ kind: 'risk', taskId: 'task-plan' });
+    // Let the scripted approval + resume land.
+    vi.advanceTimersByTime(3_000);
+    s = useSwarm.getState();
+    expect(s.gate).toBeNull();
+    expect(['running', 'assembling', 'complete']).toContain(s.mission?.status);
   });
 
   it('shows exactly one critic bounce-back before the copy task is accepted', () => {

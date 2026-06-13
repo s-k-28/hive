@@ -40,6 +40,13 @@ export interface SceneFx {
   burstAt: number | null; // mission_completed bloom burst
 }
 
+/** An active gate holding the swarm. Read by the cockpit and the scene. */
+export interface GateState {
+  kind: 'budget' | 'steps' | 'risk';
+  taskId: string | null;
+  at: number; // performance.now() when it tripped, for a one-shot scene pulse
+}
+
 interface SwarmState {
   mission: Mission | null;
   tasks: Record<string, Task>;
@@ -48,6 +55,8 @@ interface SwarmState {
   memoryCount: number;
   artifact: { url: string; name: string } | null;
   focusAgent: AgentName | null;
+  focusTask: string | null;
+  gate: GateState | null;
   fx: SceneFx;
   lastSeq: number;
 
@@ -55,6 +64,7 @@ interface SwarmState {
   applyEvent: (record: SwarmEventRecord) => void;
   setTasks: (tasks: Task[]) => void;
   setFocus: (agent: AgentName | null) => void;
+  setFocusTask: (taskId: string | null) => void;
   reset: () => void;
 }
 
@@ -78,6 +88,8 @@ export const useSwarm = create<SwarmState>((set, get) => ({
   memoryCount: 0,
   artifact: null,
   focusAgent: null,
+  focusTask: null,
+  gate: null,
   fx: freshFx(),
   lastSeq: 0,
 
@@ -89,6 +101,9 @@ export const useSwarm = create<SwarmState>((set, get) => ({
       log: [],
       memoryCount: 0,
       artifact: null,
+      focusAgent: null,
+      focusTask: null,
+      gate: null,
       fx: freshFx(),
       lastSeq: 0,
     }),
@@ -100,6 +115,8 @@ export const useSwarm = create<SwarmState>((set, get) => ({
 
   setFocus: (agent) => set({ focusAgent: agent }),
 
+  setFocusTask: (taskId) => set({ focusTask: taskId }),
+
   reset: () =>
     set({
       mission: null,
@@ -109,6 +126,8 @@ export const useSwarm = create<SwarmState>((set, get) => ({
       memoryCount: 0,
       artifact: null,
       focusAgent: null,
+      focusTask: null,
+      gate: null,
       fx: freshFx(),
       lastSeq: 0,
     }),
@@ -127,7 +146,7 @@ export const useSwarm = create<SwarmState>((set, get) => ({
         recallThreads: [...s.fx.recallThreads],
         burstAt: s.fx.burstAt,
       };
-      let { mission, memoryCount, artifact } = s;
+      let { mission, memoryCount, artifact, gate } = s;
 
       const pushLog = (line: Omit<LogLine, 'seq' | 'at'>) => {
         log.push({ ...line, seq, at: createdAt });
@@ -170,6 +189,9 @@ export const useSwarm = create<SwarmState>((set, get) => ({
               feedback: null,
               attempts: 0,
               orderIndex: i,
+              costCents: 0,
+              risk: false,
+              riskApproved: false,
             };
           }
           setVisual('planner', 'complete');
@@ -250,9 +272,78 @@ export const useSwarm = create<SwarmState>((set, get) => ({
           if (mission) mission = { ...mission, status: 'failed' };
           pushLog({ agent: null, kind: 'error', text: `Mission failed: ${event.reason}` });
           break;
+
+        // --- control tower ---------------------------------------------------
+
+        case 'budget_updated':
+          if (mission)
+            mission = {
+              ...mission,
+              spentCents: event.spentCents,
+              budgetCents: event.budgetCents,
+              stepCount: event.stepCount,
+              maxSteps: event.maxSteps,
+            };
+          break;
+
+        case 'gate_tripped':
+          gate = { kind: event.kind, taskId: event.taskId, at: now };
+          if (mission)
+            mission = {
+              ...mission,
+              status: event.kind === 'risk' ? 'awaiting_input' : 'paused',
+            };
+          if (event.kind === 'risk' && event.taskId && tasks[event.taskId]) {
+            tasks[event.taskId] = { ...tasks[event.taskId], risk: true };
+          }
+          pushLog({
+            agent: null,
+            kind: 'error',
+            text:
+              event.kind === 'budget'
+                ? 'Gate: budget reached. Swarm paused for your decision.'
+                : event.kind === 'steps'
+                  ? 'Gate: step cap reached. Swarm paused for your decision.'
+                  : `Gate: high-impact step held for approval${event.taskId ? ` (${tasks[event.taskId]?.title ?? event.taskId})` : ''}.`,
+          });
+          break;
+
+        case 'intervention_applied':
+          pushLog({
+            agent: null,
+            kind: 'status',
+            text: `Steering: ${event.kind}${event.note ? ` - ${event.note}` : ''}`,
+          });
+          break;
+
+        case 'mission_paused':
+          if (mission) mission = { ...mission, status: 'paused' };
+          pushLog({ agent: null, kind: 'status', text: 'Swarm paused' });
+          break;
+
+        case 'mission_resumed':
+          gate = null;
+          if (mission && (mission.status === 'paused' || mission.status === 'awaiting_input')) {
+            mission = { ...mission, status: 'running' };
+          }
+          pushLog({ agent: null, kind: 'status', text: 'Swarm resumed' });
+          break;
+
+        case 'task_killed':
+          if (tasks[event.taskId]) {
+            tasks[event.taskId] = { ...tasks[event.taskId], status: 'killed', assignee: null };
+          }
+          // A kill clears a risk gate that was holding on this task.
+          if (gate && gate.kind === 'risk' && gate.taskId === event.taskId) gate = null;
+          pushLog({
+            agent: null,
+            kind: 'status',
+            text: `killed: ${tasks[event.taskId]?.title ?? event.taskId}`,
+          });
+          break;
       }
 
-      return { mission, tasks, agents, log, memoryCount, artifact, fx, lastSeq: seq };
+      return { mission, tasks, agents, log, memoryCount, artifact, gate, fx, lastSeq: seq };
     });
   },
 }));

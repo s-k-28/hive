@@ -175,6 +175,92 @@ const MODELS = {
   embed: () => Deno.env.get("AI_EMBED_MODEL") || "openai/text-embedding-3-small",
 };
 
+// --- cost accounting (control tower 4.3) ----------------------------------
+//
+// Approximate published per-million-token rates in USD, by model id. These are
+// rough and only need to be representative for the live cost meter; the exact
+// numbers are not load-bearing. Unknown models fall back to a sane default so a
+// new model never makes a step look free. Rates: [prompt, completion] per 1M.
+const RATES_PER_MTOK: Record<string, [number, number]> = {
+  "openai/gpt-4o": [2.5, 10],
+  "openai/gpt-4o-mini": [0.15, 0.6],
+  "anthropic/claude-3.5-haiku": [0.8, 4],
+  "anthropic/claude-3.5-sonnet": [3, 15],
+};
+const DEFAULT_RATE: [number, number] = [1, 3];
+
+// Cents for a completion, from usage tokens and the model actually used. Returns
+// at least 1 cent for any real call so each step visibly costs something on the
+// meter. Best effort: any malformed usage yields a small floor cost.
+function costCentsFor(modelId: string, usage: unknown): number {
+  const u = (usage ?? {}) as { prompt_tokens?: number; completion_tokens?: number };
+  const promptTok = Number(u.prompt_tokens ?? 0);
+  const completionTok = Number(u.completion_tokens ?? 0);
+  const [pIn, pOut] = RATES_PER_MTOK[modelId] ?? DEFAULT_RATE;
+  const usd = (promptTok / 1_000_000) * pIn + (completionTok / 1_000_000) * pOut;
+  const cents = Math.round(usd * 100);
+  return Math.max(1, cents);
+}
+
+// Record the cost of one step: set the task's cost, increment the mission spend
+// and step count, then emit budget_updated with the fresh totals so the cockpit
+// meter advances live. Strictly best effort: an accounting failure is logged and
+// swallowed so it can never fail the underlying task. Each agent-run counts as
+// at least one step. taskId is null for the planner and assembler.
+async function recordCost(
+  db: ReturnType<typeof admin>,
+  missionId: string,
+  taskId: string | null,
+  modelId: string,
+  usage: unknown,
+): Promise<void> {
+  try {
+    const cents = costCentsFor(modelId, usage);
+
+    // Per-task cost: add to whatever the task already accrued (retries stack).
+    if (taskId) {
+      const { data: tRows } = await db.database
+        .from("tasks")
+        .select("cost_cents")
+        .eq("mission_id", missionId)
+        .eq("id", taskId)
+        .limit(1);
+      const prior = Number(tRows?.[0]?.cost_cents ?? 0);
+      await db.database
+        .from("tasks")
+        .update({ cost_cents: prior + cents })
+        .eq("mission_id", missionId)
+        .eq("id", taskId);
+    }
+
+    // Mission totals: read, increment, write. A small race here only slightly
+    // under-counts and self-corrects on the next step; the gate still trips.
+    const { data: mRows } = await db.database
+      .from("missions")
+      .select("spent_cents, step_count, budget_cents, max_steps")
+      .eq("id", missionId)
+      .limit(1);
+    const m = mRows?.[0] as
+      | { spent_cents?: number; step_count?: number; budget_cents?: number | null; max_steps?: number | null }
+      | undefined;
+    const spent = Number(m?.spent_cents ?? 0) + cents;
+    const steps = Number(m?.step_count ?? 0) + 1;
+    await db.database
+      .from("missions")
+      .update({ spent_cents: spent, step_count: steps })
+      .eq("id", missionId);
+
+    await emitEvent(db, missionId, "budget_updated", {
+      spentCents: spent,
+      budgetCents: m?.budget_cents ?? null,
+      stepCount: steps,
+      maxSteps: m?.max_steps ?? null,
+    });
+  } catch (e) {
+    console.error("recordCost failed (continuing)", e);
+  }
+}
+
 // --- local row types ------------------------------------------------------
 
 interface TaskRow {
@@ -327,6 +413,14 @@ async function runPlanner(
   if (!claimed || claimed.length === 0) return; // someone else is planning
   const goal = (claimed[0]?.goal as string | undefined) ?? "";
 
+  // Injected guidance, if a human added a constraint before planning ran.
+  const { data: guideRows } = await db.database
+    .from("missions")
+    .select("guidance")
+    .eq("id", missionId)
+    .limit(1);
+  const guidance = (guideRows?.[0]?.guidance as string | null | undefined) ?? null;
+
   const ai = openai();
   const system =
     "You are the Planner of an autonomous agent swarm. Decompose the user's " +
@@ -343,11 +437,18 @@ async function runPlanner(
     model: MODELS.planner(),
     messages: [
       { role: "system", content: system },
-      { role: "user", content: `Goal: ${goal}` },
+      {
+        role: "user",
+        content:
+          `Goal: ${goal}` +
+          (guidance ? `\n\nOperator guidance to respect: ${guidance}` : ""),
+      },
     ],
     temperature: 0.4,
   });
   const raw = completion.choices?.[0]?.message?.content ?? "";
+  // Account for the planner step (no task; counts as a step). Best effort.
+  await recordCost(db, missionId, null, completion.model ?? MODELS.planner(), completion.usage);
   let plan = extractJson<PlanTask[]>(raw);
 
   // Validate / sanitize: keep well-formed entries, normalize ids to slugs,
@@ -394,7 +495,24 @@ async function runPlanner(
     );
   }
 
-  // Insert task rows (pending; order_index by array order).
+  // Insert task rows (pending; order_index by array order). Tag exactly one
+  // high-impact task risk = true so the risk gate fires on a real run: prefer
+  // the synthesis (a task that others depend on, i.e. appears in some
+  // dependsOn), else the last task. The orchestrator holds for human approval
+  // before dispatching a risk task that is not yet approved.
+  const dependedOn = new Set<string>();
+  for (const t of plan) for (const d of t.dependsOn) dependedOn.add(d);
+  // The synthesis is the final task: the one nothing else depends on, that has
+  // the most dependencies. Fall back to the last task in plan order.
+  let riskId = plan[plan.length - 1]?.id ?? null;
+  let bestDeps = -1;
+  for (const t of plan) {
+    if (!dependedOn.has(t.id) && t.dependsOn.length > bestDeps) {
+      bestDeps = t.dependsOn.length;
+      riskId = t.id;
+    }
+  }
+
   const rows = plan.map((t, i) => ({
     mission_id: missionId,
     id: t.id,
@@ -403,6 +521,7 @@ async function runPlanner(
     status: "pending",
     depends_on: t.dependsOn,
     order_index: i,
+    risk: t.id === riskId,
   }));
   const { error: insErr } = await db.database.from("tasks").insert(rows);
   if (insErr) throw new Error(`failed to insert tasks: ${insErr.message}`);
@@ -441,10 +560,11 @@ async function runWorker(
 
   const { data: missionRows } = await db.database
     .from("missions")
-    .select("goal")
+    .select("goal, guidance")
     .eq("id", missionId)
     .limit(1);
   const goal = (missionRows?.[0]?.goal as string | undefined) ?? "";
+  const guidance = (missionRows?.[0]?.guidance as string | null | undefined) ?? null;
 
   const ai = openai();
 
@@ -491,6 +611,9 @@ async function runWorker(
     task.feedback && task.attempts > 0
       ? `\n\nThis task was previously returned by the reviewer. Address this feedback: ${task.feedback}`
       : "";
+  const guidanceNote = guidance
+    ? `\n\nOperator guidance to respect throughout: ${guidance}`
+    : "";
 
   const system =
     "You are a Worker agent in an autonomous swarm. Complete exactly the one " +
@@ -503,7 +626,8 @@ async function runWorker(
     `Your task: ${task.title}\n` +
     (task.description ? `Details: ${task.description}\n` : "") +
     memoryContext +
-    retryNote;
+    retryNote +
+    guidanceNote;
 
   const completion = await chat(ai, {
     model: MODELS.worker(),
@@ -515,6 +639,9 @@ async function runWorker(
   });
   const result = (completion.choices?.[0]?.message?.content ?? "").trim();
   if (!result) throw new Error("worker produced empty result");
+
+  // Account for this worker step. Best effort; never fails the task.
+  await recordCost(db, missionId, taskId, completion.model ?? MODELS.worker(), completion.usage);
 
   // One short reasoning line for the live log.
   await emitEvent(db, missionId, "agent_thought", {
@@ -620,6 +747,8 @@ async function runCritic(
     temperature: 0.2,
   });
   const raw = completion.choices?.[0]?.message?.content ?? "";
+  // Account for the critic step against the task. Best effort.
+  await recordCost(db, missionId, taskId, completion.model ?? MODELS.critic(), completion.usage);
 
   let verdict: "accepted" | "rejected" = "accepted";
   let feedback = "";
@@ -690,16 +819,17 @@ async function runAssembler(
 ): Promise<void> {
   const { data: missionRows } = await db.database
     .from("missions")
-    .select("goal, status")
+    .select("goal, status, guidance")
     .eq("id", missionId)
     .limit(1);
-  const mission = missionRows?.[0] as { goal: string; status: string } | undefined;
+  const mission = missionRows?.[0] as { goal: string; status: string; guidance?: string | null } | undefined;
   if (!mission) throw new Error("mission not found");
   // Idempotency: the orchestrator already flipped running -> assembling and only
   // one tick wins that flip, so only one assembler runs. If somehow re-invoked
   // after completion, bail.
   if (mission.status === "complete") return;
   const goal = mission.goal ?? "";
+  const guidance = mission.guidance ?? null;
 
   const { data: taskRows } = await db.database
     .from("tasks")
@@ -722,7 +852,8 @@ async function runAssembler(
   const parts = accepted
     .map((t) => `## ${t.title}\n\n${t.result ?? ""}`)
     .join("\n\n");
-  const user = `Mission goal: ${goal}\n\nAccepted work to assemble:\n\n${parts}`;
+  const user = `Mission goal: ${goal}\n\nAccepted work to assemble:\n\n${parts}` +
+    (guidance ? `\n\nOperator guidance to respect: ${guidance}` : "");
 
   const completion = await chat(ai, {
     model: MODELS.assembler(),
@@ -734,6 +865,8 @@ async function runAssembler(
   });
   const artifact = (completion.choices?.[0]?.message?.content ?? "").trim() ||
     `# Mission deliverable\n\n${parts}`;
+  // Account for the assembler step (mission-level; no single task). Best effort.
+  await recordCost(db, missionId, null, completion.model ?? MODELS.assembler(), completion.usage);
 
   // Upload to the artifacts bucket. The bucket must already exist (created out
   // of band; see docs/deploy.md). upload() returns { data: { url, key, ... } }.

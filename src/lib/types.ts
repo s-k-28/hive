@@ -23,7 +23,9 @@ export type MissionStatus =
   | 'running'
   | 'assembling'
   | 'complete'
-  | 'failed';
+  | 'failed'
+  | 'paused'          // a human paused the swarm, or a budget/step gate tripped
+  | 'awaiting_input'; // a risk gate is holding for a human approve/deny decision
 
 export type TaskStatus =
   | 'pending'    // waiting on dependencies
@@ -31,7 +33,8 @@ export type TaskStatus =
   | 'review'     // completed, awaiting critic verdict
   | 'rejected'   // critic bounced it back; will be retried with feedback
   | 'accepted'   // critic approved
-  | 'failed';    // exhausted retries
+  | 'failed'     // exhausted retries
+  | 'killed';    // a human killed it, or denied its risk gate; terminal
 
 export interface Mission {
   id: string;
@@ -39,6 +42,12 @@ export interface Mission {
   status: MissionStatus;
   artifactUrl: string | null;
   createdAt: string;
+  // Governance (control tower). Null budget/maxSteps mean no limit set.
+  budgetCents: number | null;
+  spentCents: number;
+  stepCount: number;
+  maxSteps: number | null;
+  guidance: string | null; // injected constraints, appended as the run proceeds
 }
 
 export interface Task {
@@ -53,6 +62,10 @@ export interface Task {
   feedback: string | null; // critic feedback when rejected
   attempts: number;
   orderIndex: number;
+  // Governance (control tower).
+  costCents: number;     // cost accrued running this task
+  risk: boolean;         // high-impact step; must pass the risk gate to dispatch
+  riskApproved: boolean; // a human approved this gated task
 }
 
 /** Visual state an agent orb can be in. Derived purely from events. */
@@ -81,7 +94,14 @@ export type SwarmEvent =
   | { type: 'task_failed'; taskId: string; agent: AgentName; error: string }
   | { type: 'artifact_created'; url: string; name: string }
   | { type: 'mission_completed' }
-  | { type: 'mission_failed'; reason: string };
+  | { type: 'mission_failed'; reason: string }
+  // --- control tower: governance, steering, observability ------------------
+  | { type: 'budget_updated'; spentCents: number; budgetCents: number | null; stepCount: number; maxSteps: number | null }
+  | { type: 'gate_tripped'; kind: 'budget' | 'steps' | 'risk'; taskId: string | null }
+  | { type: 'intervention_applied'; kind: string; taskId: string | null; note: string | null }
+  | { type: 'mission_paused' }
+  | { type: 'mission_resumed' }
+  | { type: 'task_killed'; taskId: string };
 
 export type SwarmEventType = SwarmEvent['type'];
 
@@ -111,6 +131,12 @@ export interface SwarmEventRecord {
 //   artifact_created  -> artifact chip appears in overlay
 //   mission_completed -> full-scene bloom burst, then calm
 //   mission_failed    -> scene dims, core gutters
+//   budget_updated    -> cost meter advances; core strains as budget is spent
+//   gate_tripped      -> gated task node pulses amber; mission pauses/holds
+//   intervention_applied -> a steering line lands in the log
+//   mission_paused    -> orbits slow, scene desaturates
+//   mission_resumed   -> orbits and color return
+//   task_killed       -> killed task node dims out
 // ---------------------------------------------------------------------------
 
 export const AGENT_ROSTER: { name: AgentName; role: AgentRole }[] = [

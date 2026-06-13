@@ -16,6 +16,11 @@ const MISSION: Mission = {
   status: 'planning',
   artifactUrl: null,
   createdAt: '1970-01-01T00:00:00.000Z',
+  budgetCents: 100,
+  spentCents: 0,
+  stepCount: 0,
+  maxSteps: null,
+  guidance: null,
 };
 
 let seq = 0;
@@ -208,6 +213,87 @@ describe('log cap', () => {
     expect(log.length).toBeLessThanOrEqual(200);
     // The newest line is retained.
     expect(log.at(-1)?.text).toBe('t259');
+  });
+});
+
+describe('control tower events', () => {
+  it('budget_updated advances spend, step count, and budget on the mission', () => {
+    apply({ type: 'budget_updated', spentCents: 37, budgetCents: 100, stepCount: 4, maxSteps: 20 });
+    const m = useSwarm.getState().mission;
+    expect(m?.spentCents).toBe(37);
+    expect(m?.budgetCents).toBe(100);
+    expect(m?.stepCount).toBe(4);
+    expect(m?.maxSteps).toBe(20);
+  });
+
+  it('gate_tripped budget pauses the mission and records the gate', () => {
+    apply({ type: 'gate_tripped', kind: 'budget', taskId: null });
+    const s = useSwarm.getState();
+    expect(s.mission?.status).toBe('paused');
+    expect(s.gate).toMatchObject({ kind: 'budget', taskId: null });
+    expect(s.log.at(-1)?.kind).toBe('error');
+  });
+
+  it('gate_tripped steps pauses the mission', () => {
+    apply({ type: 'gate_tripped', kind: 'steps', taskId: null });
+    const s = useSwarm.getState();
+    expect(s.mission?.status).toBe('paused');
+    expect(s.gate?.kind).toBe('steps');
+  });
+
+  it('gate_tripped risk moves to awaiting_input and flags the task as risk', () => {
+    apply(PLAN);
+    apply({ type: 'gate_tripped', kind: 'risk', taskId: 'copy' });
+    const s = useSwarm.getState();
+    expect(s.mission?.status).toBe('awaiting_input');
+    expect(s.gate).toMatchObject({ kind: 'risk', taskId: 'copy' });
+    expect(s.tasks['copy'].risk).toBe(true);
+  });
+
+  it('mission_paused and mission_resumed toggle status and clear the gate', () => {
+    apply({ type: 'gate_tripped', kind: 'budget', taskId: null });
+    expect(useSwarm.getState().mission?.status).toBe('paused');
+    apply({ type: 'mission_resumed' });
+    const s = useSwarm.getState();
+    expect(s.mission?.status).toBe('running');
+    expect(s.gate).toBeNull();
+  });
+
+  it('mission_resumed only lifts paused or awaiting_input, not terminal states', () => {
+    apply({ type: 'mission_completed' });
+    apply({ type: 'mission_resumed' });
+    expect(useSwarm.getState().mission?.status).toBe('complete');
+  });
+
+  it('mission_paused sets the paused status directly', () => {
+    apply({ type: 'mission_paused' });
+    expect(useSwarm.getState().mission?.status).toBe('paused');
+    expect(useSwarm.getState().log.at(-1)?.text).toContain('paused');
+  });
+
+  it('task_killed marks the task killed, frees its assignee, and logs it', () => {
+    apply(PLAN);
+    apply({ type: 'task_claimed', taskId: 'research', agent: 'worker-1' });
+    apply({ type: 'task_killed', taskId: 'research' });
+    const s = useSwarm.getState();
+    expect(s.tasks['research'].status).toBe('killed');
+    expect(s.tasks['research'].assignee).toBeNull();
+    expect(s.log.at(-1)?.text).toContain('killed');
+  });
+
+  it('task_killed clears a risk gate that was holding on that task', () => {
+    apply(PLAN);
+    apply({ type: 'gate_tripped', kind: 'risk', taskId: 'copy' });
+    expect(useSwarm.getState().gate?.kind).toBe('risk');
+    apply({ type: 'task_killed', taskId: 'copy' });
+    expect(useSwarm.getState().gate).toBeNull();
+  });
+
+  it('intervention_applied appends a steering line to the log', () => {
+    apply({ type: 'intervention_applied', kind: 'inject', taskId: null, note: 'Stay under budget' });
+    const last = useSwarm.getState().log.at(-1);
+    expect(last?.text).toContain('inject');
+    expect(last?.text).toContain('Stay under budget');
   });
 });
 

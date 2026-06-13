@@ -165,5 +165,7 @@ export function taskStatusColor(status: Task['status']): THREE.ColorRepresentati
       return '#ff2244';
     case 'failed':
       return '#7a1020';
+    case 'killed':
+      return '#2a2030'; // dimmed out, terminal
   }
 }
