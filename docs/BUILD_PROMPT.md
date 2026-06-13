@@ -1,4 +1,4 @@
-# HIVE Control Tower — Master Build Prompt (for a coding agent)
+# HIVE Control Tower: Master Build Prompt (for a coding agent)
 
 You are an elite full-stack engineer building a hackathon-winning product. Your
 job is to evolve an existing codebase named HIVE into "the live control tower for
@@ -32,6 +32,14 @@ technically impressive, most visually pleasing). The product must:
 The repositioning in one line: HIVE lets you run a team of AI agents you can see,
 stop, and steer in real time.
 
+Your role: you implement every line of code for this product, autonomously and
+end to end. This document is your complete and final specification. Section 9
+gives every exact value, shape, default, and command, so you never have to guess
+or re-decide. Where this document is precise, follow it exactly. Where it points
+to a repo file (`src/lib/types.ts`, `docs/insforge-cheatsheet.md`, `docs/PRD.md`),
+that file is canonical. If you ever feel you must invent a value or behavior that
+is not specified, stop and check Section 9 first; it is almost certainly there.
+
 ## 1. Ground yourself in the existing codebase first
 
 The repository is public at https://github.com/s-k-28/hive. Clone it. It already
@@ -39,27 +47,27 @@ contains a working multi-agent engine and a 3D UI. Do not rebuild it; extend it.
 
 Read these files before writing anything, in this order:
 
-1. `docs/PRD.md` — the full product definition, scope, and build plan. This build
+1. `docs/PRD.md`: the full product definition, scope, and build plan. This build
    prompt is the executable version of that PRD. If anything here is ambiguous,
    the PRD is the source of truth for intent.
-2. `docs/insforge-cheatsheet.md` — verified InsForge API reference (SDK, auth,
+2. `docs/insforge-cheatsheet.md`: verified InsForge API reference (SDK, auth,
    database, realtime, edge functions, AI gateway, pgvector, storage, sites,
    migrations, RLS, gotchas). Treat it as canonical. Do not invent API shapes.
-3. `src/lib/types.ts` — the swarm protocol (SwarmEvent union, Mission, Task,
+3. `src/lib/types.ts`: the swarm protocol (SwarmEvent union, Mission, Task,
    AgentName, AGENT_ROSTER, ROLE_COLORS). All new events extend this.
-4. `src/state/swarm.ts` — the zustand reducer that turns the event stream into
-   scene and UI state. `src/state/simulation.ts` — a scripted local mission used
+4. `src/state/swarm.ts`: the zustand reducer that turns the event stream into
+   scene and UI state. `src/state/simulation.ts`: a scripted local mission used
    for tests and for running the UI without a backend.
-5. `functions/orchestrator.ts` and `functions/agent-run.ts` — the Deno edge
+5. `functions/orchestrator.ts` and `functions/agent-run.ts`: the Deno edge
    functions. The orchestrator is a race-safe, idempotent tick; agent-run is the
    role-parametrized worker (planner, worker, critic, assembler).
-6. `migrations/*.sql` — the current schema (missions, tasks, events, memories),
+6. `migrations/*.sql`: the current schema (missions, tasks, events, memories),
    RLS, the pgvector match RPC, and the realtime publish trigger.
-7. `src/scene/*` — the r3f scene (EnergyCore, AgentOrb, TaskGraph, FlowEdge,
-   AgentTaskBeam, Constellation, Effects, CameraRig, layout). `src/ui/*` — the
+7. `src/scene/*`: the r3f scene (EnergyCore, AgentOrb, TaskGraph, FlowEdge,
+   AgentTaskBeam, Constellation, Effects, CameraRig, layout). `src/ui/*`: the
    glass overlay (Header, MissionConsole, MissionLog, SwarmRoster,
    ProgressArtifact).
-8. `docs/r3f-playbook.md` — the 3D recipes, perf budget, and package versions
+8. `docs/r3f-playbook.md`: the 3D recipes, perf budget, and package versions
    already in use. Follow it for any scene work.
 
 What already works and must keep working: the swarm runs a goal through
@@ -380,3 +388,136 @@ independent verification agents, exactly as a strong team would:
   public, no secrets leaked.
 
 Build it clean, verify it adversarially, and make it the best product it can be.
+
+## 9. Exact decisions and values (final, do not re-decide)
+
+This section removes all ambiguity. Treat every value here as fixed. Do not
+deliberate over alternatives; implement these.
+
+### 9.1 Setup and commands
+
+- Node 20 or newer. From the repo root: `npm install`.
+- Add the only new dependencies: `npm install react-markdown remark-gfm` (install
+  the current versions that support React 19; do not pin older majors).
+- Dev server: `npm run dev` (serves http://localhost:5173). Append `?sim` to run
+  the scripted mission with no backend, for UI work and offline tests.
+- The full gauntlet, which must pass before every commit:
+  `npm run lint && npm run build && npx vitest run`. `npm run build` runs
+  `tsc -b && vite build`.
+- Headless browser QA: Playwright is already cached on the machine. Launch the
+  dev server, drive `http://localhost:5173/?sim`, screenshot at intervals, and
+  assert zero console errors and zero page errors.
+
+### 9.2 Cost model (token usage to cents)
+
+Rates are US dollars per 1,000,000 tokens, as (input / output):
+
+- `openai/gpt-4o`: 2.50 / 10.00
+- `openai/gpt-4o-mini`: 0.15 / 0.60
+- `anthropic/claude-3.5-haiku`: 0.80 / 4.00
+- `openai/text-embedding-3-small`: 0.02 (treat the whole embedding call as input)
+- any other or unknown model: 1.00 / 3.00
+
+Formula for a chat call:
+`cents = Math.round((promptTokens / 1e6 * inputRate + completionTokens / 1e6 * outputRate) * 100)`.
+For an embedding call: `cents = Math.round(tokens / 1e6 * 0.02 * 100)`. Never
+below 0. Read token counts from `completion.usage` (`prompt_tokens`,
+`completion_tokens`); if usage is missing, estimate `Math.ceil(chars / 4)` tokens.
+
+Note on the budget gate: real per-call costs are small (a full mission is roughly
+5 to 8 cents), so the budget gate is a deliberate-low-budget demo. The risk gate
+(9.3) is the guaranteed gate that always fires once per mission. Both must work.
+
+### 9.3 Defaults and the launch budget control
+
+- `missions.max_steps` default: 16. `missions.budget_cents` default: 10.
+- The launch console (`MissionConsole`) shows a budget control with three presets
+  in cents: 5, 10, 25 (label them as "$0.05 tight", "$0.10 normal", "$0.25
+  generous"). The selected value is passed to `startMission(goal, budgetCents)`.
+  The 5-cent preset is what trips the budget gate mid-run; 10 and 25 complete.
+- The planner always tags exactly one task `risk = true`: choose the final
+  synthesis/assembly-feeding task or the single most consequential task. This
+  guarantees the risk gate fires once in every real run.
+
+### 9.4 Intervention payload shapes (the `payload` jsonb)
+
+- `pause`: `{}`
+- `resume`: `{}`
+- `raise_budget`: `{ "budgetCents": number }`
+- `kill_task`: `{ "taskId": string }`
+- `approve_gate`: `{ "taskId": string }`
+- `deny_gate`: `{ "taskId": string }`
+- `inject`: `{ "note": string }`
+
+The browser writes one row, then calls
+`client.functions.invoke('orchestrator', { body: { missionId } })` once so the
+orchestrator applies it on the next tick. No new realtime channel is needed; the
+resulting events flow over the existing `mission:{id}` channel.
+
+### 9.5 Store additions (`src/state/swarm.ts`)
+
+- Add to the mission runtime in the store: `spentCents`, `budgetCents`,
+  `stepCount`, `maxSteps`, `guidance` (string), all derived from events.
+- Add `gate: { kind: 'budget' | 'steps' | 'risk'; taskId: string | null } | null`.
+  Set it on `gate_tripped`. Clear it on `mission_resumed`, and when an
+  `intervention_applied` of kind `approve` or `deny` arrives, or on
+  `budget_updated` that shows spent below budget after a raise.
+- Add `focusTask: string | null` and `setFocusTask(id: string | null)`. The
+  Inspector opens when `focusAgent` or `focusTask` is set. Clearing focus (empty
+  space click or Escape) clears both.
+- Task runtime gains `costCents`, `risk`, `riskApproved`, and the `killed` status.
+- Mission status gains `paused` and `awaiting_input`. Reducer maps every event in
+  4.2; add a unit test per event.
+
+### 9.6 Workers honor injected guidance
+
+In `agent-run.ts`, the worker (and the assembler) must read `mission.guidance`
+and, when it is non-empty, append it to their user prompt as a labeled block:
+`Additional operator guidance you must follow: <guidance>`. This is how an
+injected constraint actually changes the output.
+
+### 9.7 Offline steering behavior (sim mode, no InsForge client)
+
+When `getClient()` is null, the steering helpers in `src/lib/mission.ts` operate
+on the store directly so the whole UI is testable offline and in tests:
+- `pauseMission`: set mission status `paused`, stop advancing the simulation
+  timers, emit a synthetic `mission_paused` through `applyEvent`.
+- `resumeMission`: status back to `running`, resume timers, emit `mission_resumed`.
+- `raiseBudget(cents)`: emit `budget_updated` with the new `budgetCents`; clear a
+  budget gate.
+- `approveGate(taskId)` / `denyGate(taskId)`: clear the gate; approve continues,
+  deny emits `task_killed`.
+- `injectNote(note)`: emit `intervention_applied('inject', null, note)` and append
+  to the store `guidance`.
+- `killTask(taskId)`: emit `task_killed`.
+Keep this minimal; it exists for offline UI testing, not production logic.
+
+### 9.8 Auth, history, and reopen
+
+- `Auth.tsx`: an email and password form with a Sign in / Sign up toggle, and a
+  Sign out when authed. Use the InsForge auth SDK exactly as in the cheat sheet:
+  `auth.signUp`, `auth.signInWithPassword`, `auth.getCurrentUser`, `auth.signOut`.
+  Store the current user (id, email) in the store; show the email in the header.
+- Anonymous use stays allowed. When signed in, `startMission` sets `user_id` to
+  the current user id; when anonymous, `user_id` is null (the existing RLS allows
+  both). History requires sign-in.
+- `MissionHistory.tsx` query:
+  `client.database.from('missions').select('id, goal, status, created_at, artifact_url').eq('user_id', userId).order('created_at', { ascending: false }).limit(20)`.
+- Reopen a past mission: set it as the active mission in the store, call
+  `realtime.connect()` then `subscribe('mission:'+id)`, and replay history by
+  selecting its events ordered by `seq` ascending and calling `applyEvent` on each
+  (reshape the row to a `SwarmEventRecord` exactly as the live handler does in
+  `src/lib/mission.ts`).
+
+### 9.9 Markdown rendering and miscellaneous
+
+- Render all model output (inspector task results, the final artifact) with
+  `react-markdown` + `remark-gfm`. Do not allow raw HTML; rely on the default safe
+  element set. Style it with the existing tokens so it matches the glass theme.
+- Task nodes in the scene get an `onClick` that calls `setFocusTask(taskId)`,
+  mirroring how agent orbs call `setFocus(name)`. This is what opens the Inspector
+  on a task.
+- Do not register a new realtime channel for interventions. Do not add web search
+  or any external agent tool; the agents use the AI gateway only.
+- Before every push, scan the diff for secret-shaped strings (`ik_`, `sk-`,
+  `sk-or-`, `gho_`, `AKIA`) and confirm none are present.
