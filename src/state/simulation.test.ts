@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { runSimulation } from './simulation';
+import {
+  runSimulation,
+  simApproveGate,
+  simDenyGate,
+  simInjectNote,
+  simPause,
+  simResume,
+} from './simulation';
 import { useSwarm } from './swarm';
 import type { Task } from '../lib/types';
 
@@ -21,7 +28,7 @@ describe('runSimulation', () => {
 
   it('drives a mission to a fully accepted, complete terminal state', () => {
     runSimulation('Draft a launch plan');
-    // Fire every scheduled event (the script tops out near 26s).
+    // Fire every scheduled event (the script tops out near 28s).
     vi.advanceTimersByTime(40_000);
 
     const s = useSwarm.getState();
@@ -34,6 +41,32 @@ describe('runSimulation', () => {
     expect(s.artifact?.name).toBe('launch-plan.md');
     expect(s.fx.burstAt).not.toBeNull();
     expect(s.log.at(-1)?.text).toContain('Mission complete');
+  });
+
+  it('climbs the cost meter and clears the gate by the end', () => {
+    runSimulation();
+    vi.advanceTimersByTime(40_000);
+    const s = useSwarm.getState();
+    // Spend accrued via budget_updated events, under the demo budget.
+    expect(s.mission?.spentCents).toBeGreaterThan(0);
+    expect(s.mission?.spentCents).toBeLessThanOrEqual(s.mission?.budgetCents ?? 0);
+    expect(s.mission?.stepCount).toBeGreaterThan(0);
+    // The risk gate fired mid-run but is resolved by completion.
+    expect(s.gate).toBeNull();
+  });
+
+  it('fires exactly one risk gate that holds then resumes mid-run', () => {
+    runSimulation();
+    // Advance to just after the gate trips (21.4s) but before the approval.
+    vi.advanceTimersByTime(22_000);
+    let s = useSwarm.getState();
+    expect(s.mission?.status).toBe('awaiting_input');
+    expect(s.gate).toMatchObject({ kind: 'risk', taskId: 'task-plan' });
+    // Let the scripted approval + resume land.
+    vi.advanceTimersByTime(3_000);
+    s = useSwarm.getState();
+    expect(s.gate).toBeNull();
+    expect(['running', 'assembling', 'complete']).toContain(s.mission?.status);
   });
 
   it('shows exactly one critic bounce-back before the copy task is accepted', () => {
@@ -63,5 +96,42 @@ describe('runSimulation', () => {
     vi.advanceTimersByTime(40_000);
     expect(() => handle.stop()).not.toThrow();
     expect(useSwarm.getState().mission?.status).toBe('complete');
+  });
+
+  it('offline pause then resume mid-run still reaches completion', () => {
+    // Regression: steering events must keep the reducer seq monotonic so they
+    // do not poison the dedupe and drop the rest of the scripted run.
+    runSimulation();
+    vi.advanceTimersByTime(12_000);
+    simPause();
+    expect(useSwarm.getState().mission?.status).toBe('paused');
+    simResume();
+    expect(['running', 'assembling']).toContain(useSwarm.getState().mission?.status);
+    vi.advanceTimersByTime(40_000);
+    expect(useSwarm.getState().mission?.status).toBe('complete');
+  });
+
+  it('offline inject plus manual approve clears the gate and completes', () => {
+    runSimulation();
+    vi.advanceTimersByTime(22_000);
+    expect(useSwarm.getState().mission?.status).toBe('awaiting_input');
+    simInjectNote('Keep it under one page');
+    simApproveGate('task-plan');
+    expect(useSwarm.getState().gate).toBeNull();
+    vi.advanceTimersByTime(40_000);
+    expect(useSwarm.getState().mission?.status).toBe('complete');
+  });
+
+  it('denying the gated step leaves the held state and kills the task', () => {
+    // Regression: deny must emit mission_resumed so the cockpit never stalls in
+    // awaiting_input after the backend has moved on.
+    runSimulation();
+    vi.advanceTimersByTime(22_000);
+    expect(useSwarm.getState().mission?.status).toBe('awaiting_input');
+    simDenyGate('task-plan');
+    const s = useSwarm.getState();
+    expect(s.gate).toBeNull();
+    expect(s.mission?.status).not.toBe('awaiting_input');
+    expect(s.tasks['task-plan'].status).toBe('killed');
   });
 });

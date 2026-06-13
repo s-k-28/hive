@@ -51,7 +51,10 @@ export function AgentOrb({ orbit }: AgentOrbProps) {
   );
 
   // Smoothed per-orb drivers held across frames.
-  const drive = useRef({ think: 0, glow: 1.5, errorAt: -1, ringT: 1 });
+  const drive = useRef({ think: 0, glow: 1.5, errorAt: -1, ringT: 1, paused: 0 });
+  // Orbit phase clock, accumulated so a pause can slow it without snapping. It
+  // tracks the global clock when running and nearly freezes when held.
+  const phase = useRef(0);
 
   const onClick = (e: { stopPropagation: () => void }) => {
     e.stopPropagation();
@@ -60,16 +63,24 @@ export function AgentOrb({ orbit }: AgentOrbProps) {
 
   useFrame((state, dt) => {
     const t = state.clock.elapsedTime;
-    const rt = useSwarm.getState().agents[orbit.name];
+    const store = useSwarm.getState();
+    const rt = store.agents[orbit.name];
     const visual = rt?.visual ?? 'idle';
+    const status = store.mission?.status ?? null;
+    const held = status === 'paused' || status === 'awaiting_input';
 
-    // Orbit placement.
+    const d = drive.current;
+    damp(d, 'paused', held ? 1 : 0, 0.4, dt);
+
+    // Orbit placement. Advance the phase clock at full rate when running, slowed
+    // to a near-crawl when the swarm is held, so a pause visibly calms the scene.
+    phase.current += dt * (1 - d.paused * 0.85);
+
     if (group.current) {
-      orbitPosition(orbit, t, _pos);
+      orbitPosition(orbit, phase.current, _pos);
       group.current.position.copy(_pos);
     }
 
-    const d = drive.current;
     const pulse = 0.5 + 0.5 * Math.sin(t * 3.0 + orbit.phase);
 
     // Target emissive + thinking-halo weight by visual state.

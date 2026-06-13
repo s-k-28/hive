@@ -56,6 +56,20 @@ function TaskNode({ task, layout, index }: TaskNodeProps) {
     }
 
     if (!mat.current) return;
+
+    // Gate hold: the gated task node pulses amber while the swarm awaits a
+    // decision, overriding its status color so the eye goes straight to it.
+    const gate = useSwarm.getState().gate;
+    const gated = gate?.kind === 'risk' && gate.taskId === task.id;
+    if (gated) {
+      const amber = 0.5 + 0.5 * Math.sin(t * 4.5);
+      _target.set('#f5b94a');
+      dampC(mat.current.emissive, _target, 0.1, dt);
+      mat.current.color.copy(_target);
+      damp(mat.current, 'emissiveIntensity', 3 + amber * 4, 0.1, dt);
+      return;
+    }
+
     _target.set(taskStatusColor(status));
     dampC(mat.current.emissive, _target, 0.12, dt);
     mat.current.color.copy(_target);
@@ -78,6 +92,9 @@ function TaskNode({ task, layout, index }: TaskNodeProps) {
       case 'failed':
         glow = 1.6;
         break;
+      case 'killed':
+        glow = 0.3; // dimmed out, terminal
+        break;
       default:
         glow = 0.6 + pulse * 0.2; // pending, dim
     }
@@ -86,7 +103,12 @@ function TaskNode({ task, layout, index }: TaskNodeProps) {
 
   return (
     <group ref={group} position={layout.position} visible={false}>
-      <mesh>
+      <mesh
+        onClick={(e) => {
+          e.stopPropagation();
+          useSwarm.getState().setFocusTask(task.id);
+        }}
+      >
         <octahedronGeometry args={[0.42, 0]} />
         <meshStandardMaterial
           ref={mat}

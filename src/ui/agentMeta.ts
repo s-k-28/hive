@@ -39,4 +39,6 @@ export const MISSION_STATUS_META: Record<MissionStatus, StatusMeta> = {
   assembling: { label: 'Assembling', tone: 'var(--green)' },
   complete: { label: 'Complete', tone: 'var(--green)' },
   failed: { label: 'Failed', tone: 'var(--red)' },
+  paused: { label: 'Paused', tone: 'var(--gold)' },
+  awaiting_input: { label: 'Awaiting you', tone: 'var(--magenta)' },
 };

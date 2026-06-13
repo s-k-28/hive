@@ -11,9 +11,36 @@ runbook is the contract for getting it right first try.
 Repo layout this runbook assumes:
 
 ```
-migrations/    20260612120001_core_schema.sql ... 120004_realtime.sql
+migrations/    20260612120001_core_schema.sql ... 120004_realtime.sql, 20260613002220_control_tower.sql
 functions/     orchestrator.ts, agent-run.ts
 vercel.json    SPA rewrites
+```
+
+The control tower migration (`20260613002220_control_tower.sql`) adds the
+governance columns (budget, spend, step count, guidance), the task cost / risk /
+risk_approved columns, the `paused` / `awaiting_input` mission statuses, the
+`killed` task status, and the `interventions` steering table with its RLS. It is
+idempotent and applies in the same `db migrations up --all` pass as the rest.
+After applying, verify the steering table and a governance column exist:
+
+```bash
+npx @insforge/cli db query "select count(*) from public.interventions;"
+npx @insforge/cli db query "select budget_cents, spent_cents, step_count from public.missions limit 1;"
+```
+
+To exercise the steering plane end to end on a live run, insert an intervention
+and kick the orchestrator (it drains pending interventions at the top of the
+tick):
+
+```bash
+# pause a running mission
+curl -s -X POST "$INSFORGE_URL/api/database/records/interventions" \
+  -H "Authorization: Bearer <ANON_KEY>" -H "Content-Type: application/json" \
+  -H "Prefer: return=representation" \
+  -d '[{"mission_id":"<MID>","type":"pause"}]'
+curl -s -X POST "$FUNCTIONS_BASE_URL/orchestrator" \
+  -H "Content-Type: application/json" -d "{\"missionId\":\"<MID>\"}"
+# the events stream should now carry mission_paused; status is 'paused'.
 ```
 
 ---
