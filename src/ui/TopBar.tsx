@@ -1,19 +1,26 @@
-import { Hexagon, Play, Pause } from 'lucide-react';
+import { Hexagon, Play, Pause, User, Clock } from 'lucide-react';
 import { useSwarm } from '../state/swarm';
 import { useCost } from '../state/selectors';
 import { isLiveBackend } from '../lib/insforge';
-import { pauseMission, resumeMission } from '../lib/mission';
+import { pauseMission, resumeMission, type AuthUser } from '../lib/mission';
 import { MISSION_STATUS_META } from './agentMeta';
 
 /**
  * The command bar. Brand, live backend pill, the active mission identity, and
  * the operator's at-a-glance instruments: cost meter, step counter, pause or
- * resume, and the command palette.
+ * resume, account, mission history, and the command palette.
  */
 
 const fmt = (c: number): string => `$${(c / 100).toFixed(2)}`;
 
-export function TopBar({ onOpenPalette }: { onOpenPalette: () => void }) {
+interface TopBarProps {
+  user: AuthUser | null;
+  onOpenPalette: () => void;
+  onOpenAuth: () => void;
+  onOpenHistory: () => void;
+}
+
+export function TopBar({ user, onOpenPalette, onOpenAuth, onOpenHistory }: TopBarProps) {
   const mission = useSwarm((s) => s.mission);
   const cost = useCost();
 
@@ -27,10 +34,10 @@ export function TopBar({ onOpenPalette }: { onOpenPalette: () => void }) {
 
   return (
     <header className="ws-top">
-      <div className="ws-brand">
+      <button type="button" className="ws-brand" onClick={() => { window.location.hash = ''; }} title="Home">
         <span className="ws-brand-hex"><Hexagon size={19} strokeWidth={2.2} /></span>
         <span className="ws-word">HIVE</span>
-      </div>
+      </button>
 
       <span className="ws-live" data-mode={isLiveBackend ? 'live' : 'sim'}>
         <span className="ws-live-dot" />
@@ -97,17 +104,25 @@ export function TopBar({ onOpenPalette }: { onOpenPalette: () => void }) {
       )}
 
       {terminal && (
-        <button
-          type="button"
-          className="ws-btn ws-btn--amber"
-          onClick={() => useSwarm.getState().reset()}
-        >
+        <button type="button" className="ws-btn ws-btn--amber" onClick={() => useSwarm.getState().reset()}>
           New mission
         </button>
       )}
 
+      {isLiveBackend && (
+        <>
+          <button type="button" className="ws-btn ws-btn--icon" onClick={onOpenHistory} title="Your missions">
+            <Clock size={15} />
+          </button>
+          <button type="button" className="ws-btn" onClick={onOpenAuth} title="Account">
+            <User size={14} />
+            {user ? (user.name || user.email?.split('@')[0] || 'Account') : 'Sign in'}
+          </button>
+        </>
+      )}
+
       <button type="button" className="ws-kbd" onClick={onOpenPalette} title="Command palette">
-        <kbd>⌘</kbd><kbd>K</kbd>
+        <kbd>&#8984;</kbd><kbd>K</kbd>
       </button>
     </header>
   );

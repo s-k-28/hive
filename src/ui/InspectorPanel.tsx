@@ -1,48 +1,254 @@
 import { useEffect, useRef, useState } from 'react';
+import { X, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useSwarm } from '../state/swarm';
 import { useCost, useTasksSorted } from '../state/selectors';
 import { colorOf, labelOf } from './agentMeta';
 import { injectNote, pauseMission, resumeMission, raiseBudget } from '../lib/mission';
+import type { Task } from '../lib/types';
 
 /**
- * The inspector (right rail). Tabs over the live mission: steer the swarm, watch
- * the activity feed, read raw reasoning, audit cost, and open the artifact.
+ * The inspector (right rail). When a task or agent is focused it becomes a
+ * flight recorder for that node; otherwise it is the tabbed mission view: steer,
+ * activity, raw reasoning, cost, and the artifact.
  */
 
 type Tab = 'steer' | 'activity' | 'console' | 'cost' | 'artifacts';
 const TABS: Tab[] = ['steer', 'activity', 'console', 'cost', 'artifacts'];
 
-export function Inspector() {
-  const [tab, setTab] = useState<Tab>('activity');
-  const errorCount = useSwarm((s) => s.log.filter((l) => l.kind === 'error').length);
+const STATUS_LABEL: Record<Task['status'], string> = {
+  pending: 'Pending',
+  running: 'Running',
+  review: 'In review',
+  rejected: 'Rejected',
+  accepted: 'Accepted',
+  failed: 'Failed',
+  killed: 'Killed',
+};
 
+export function Inspector() {
+  const focusTask = useSwarm((s) => s.focusTask);
+  const focusAgent = useSwarm((s) => s.focusAgent);
+  if (focusTask || focusAgent) {
+    return (
+      <div className="ws-panel">
+        <FocusDetail />
+      </div>
+    );
+  }
   return (
     <div className="ws-panel">
+      <Tabs />
+    </div>
+  );
+}
+
+function Tabs() {
+  const [tab, setTab] = useState<Tab>('activity');
+  const errorCount = useSwarm((s) => s.log.filter((l) => l.kind === 'error').length);
+  return (
+    <div className="ins">
+      <div className="ins-tabs">
+        {TABS.map((t) => (
+          <button
+            key={t}
+            type="button"
+            className="ins-tab"
+            data-active={tab === t}
+            onClick={() => setTab(t)}
+          >
+            {t}
+            {t === 'console' && errorCount > 0 ? <span className="ins-tab-badge">&#9679;</span> : null}
+          </button>
+        ))}
+      </div>
+      <div className="ins-body">
+        {tab === 'steer' && <Steer />}
+        {tab === 'activity' && <Feed kind="all" />}
+        {tab === 'console' && <Feed kind="thought" />}
+        {tab === 'cost' && <Cost />}
+        {tab === 'artifacts' && <Artifacts />}
+      </div>
+    </div>
+  );
+}
+
+function FocusDetail() {
+  const focusTask = useSwarm((s) => s.focusTask);
+  const focusAgent = useSwarm((s) => s.focusAgent);
+  const tasks = useSwarm((s) => s.tasks);
+  const log = useSwarm((s) => s.log);
+  const task = focusTask ? tasks[focusTask] : null;
+
+  const close = () => {
+    useSwarm.getState().setFocusTask(null);
+    useSwarm.getState().setFocus(null);
+  };
+
+  const head = (label: string) => (
+    <div className="det-head">
+      <span className="det-eyebrow">{label}</span>
+      <button type="button" className="det-close" onClick={close} aria-label="Close inspector">
+        <X size={14} />
+      </button>
+    </div>
+  );
+
+  if (task) {
+    const deps = task.dependsOn.map((id) => tasks[id]).filter((t): t is Task => Boolean(t));
+    const chain = log.filter(
+      (l) =>
+        l.text.includes(task.title) ||
+        (task.assignee && l.agent === task.assignee && l.kind !== 'thought'),
+    );
+    return (
       <div className="ins">
-        <div className="ins-tabs">
-          {TABS.map((t) => (
-            <button
-              key={t}
-              type="button"
-              className="ins-tab"
-              data-active={tab === t}
-              onClick={() => setTab(t)}
-            >
-              {t}
-              {t === 'console' && errorCount > 0 ? <span className="ins-tab-badge">&#9679;</span> : null}
-            </button>
-          ))}
-        </div>
-        <div className="ins-body">
-          {tab === 'steer' && <Steer />}
-          {tab === 'activity' && <Feed kind="all" />}
-          {tab === 'console' && <Feed kind="thought" />}
-          {tab === 'cost' && <Cost />}
-          {tab === 'artifacts' && <Artifacts />}
+        {head('Task inspector')}
+        <div className="det-body">
+          <div className="det-titlebar">
+            <h3 className="det-title">{task.title}</h3>
+            <span className="ws-pill" style={{ ['--pill' as string]: statusTone(task.status) }}>
+              <span className="ws-pill-dot" aria-hidden="true" />
+              {STATUS_LABEL[task.status]}
+            </span>
+          </div>
+
+          <div className="det-facts">
+            <Fact label="Cost">${(task.costCents / 100).toFixed(2)}</Fact>
+            <Fact label="Attempts">{task.attempts + 1}</Fact>
+            {task.risk && <Fact label="Gate">{task.riskApproved ? 'Approved' : 'High-impact'}</Fact>}
+            {task.assignee && (
+              <Fact label="Agent">
+                <span style={{ color: colorOf(task.assignee) }}>{task.assignee}</span>
+              </Fact>
+            )}
+          </div>
+
+          <Section title="Why it ran">
+            {deps.length > 0 ? (
+              <ul className="det-deps">
+                {deps.map((d) => (
+                  <li key={d.id} className="det-dep" style={{ ['--c' as string]: statusTone(d.status) }}>
+                    <span className="det-dep-dot" aria-hidden="true" />
+                    {d.title}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="det-muted">No dependencies. Ran as a root task.</p>
+            )}
+          </Section>
+
+          {task.feedback && (
+            <Section title="Reviewer feedback">
+              <p className="det-feedback">{task.feedback}</p>
+            </Section>
+          )}
+
+          <Section title="Output">
+            {task.result ? (
+              <div className="art-render det-md">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.result}</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="det-muted">No output yet.</p>
+            )}
+          </Section>
+
+          <Section title="Causal chain">
+            {chain.length > 0 ? (
+              <ol className="det-chain">
+                {chain.map((l) => (
+                  <li key={l.seq} className="det-chain-line" data-kind={l.kind}>
+                    <span className="det-chain-agent" style={{ color: colorOf(l.agent) }}>
+                      {labelOf(l.agent)}
+                    </span>
+                    <span>{l.text}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="det-muted">No recorded events yet.</p>
+            )}
+          </Section>
         </div>
       </div>
+    );
+  }
+
+  const agent = focusAgent!;
+  const agentLines = log.filter((l) => l.agent === agent);
+  const claimed = Object.values(tasks).filter((t) => t.assignee === agent);
+  return (
+    <div className="ins">
+      {head('Agent inspector')}
+      <div className="det-body">
+        <div className="det-titlebar">
+          <h3 className="det-title" style={{ color: colorOf(agent) }}>{agent}</h3>
+        </div>
+        <Section title="Tasks touched">
+          {claimed.length > 0 ? (
+            <ul className="det-deps">
+              {claimed.map((t) => (
+                <li
+                  key={t.id}
+                  className="det-dep det-dep-click"
+                  style={{ ['--c' as string]: statusTone(t.status) }}
+                  onClick={() => useSwarm.getState().setFocusTask(t.id)}
+                >
+                  <span className="det-dep-dot" aria-hidden="true" />
+                  {t.title}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="det-muted">No tasks claimed yet.</p>
+          )}
+        </Section>
+        <Section title="Activity">
+          {agentLines.length > 0 ? (
+            <ol className="det-chain">
+              {agentLines.map((l) => (
+                <li key={l.seq} className="det-chain-line" data-kind={l.kind}>
+                  <span>{l.text}</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="det-muted">No activity yet.</p>
+          )}
+        </Section>
+      </div>
+    </div>
+  );
+}
+
+function statusTone(status: Task['status']): string {
+  switch (status) {
+    case 'running': return 'var(--d-live)';
+    case 'review': return 'var(--d-amber)';
+    case 'accepted': return 'var(--d-grn)';
+    case 'rejected': return 'var(--d-red)';
+    case 'failed': return '#b3263c';
+    default: return '#6b7790';
+  }
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="det-section">
+      <h4 className="det-section-title">{title}</h4>
+      {children}
+    </section>
+  );
+}
+
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="det-fact">
+      <span className="det-fact-label">{label}</span>
+      <span className="det-fact-val">{children}</span>
     </div>
   );
 }
@@ -93,9 +299,7 @@ function Steer() {
 
   return (
     <div className="steer">
-      <p className="steer-note">
-        Inject a constraint the swarm will respect from here on, or take the wheel.
-      </p>
+      <p className="steer-note">Inject a constraint the swarm will respect from here on, or take the wheel.</p>
       <textarea
         className="steer-area"
         placeholder="e.g. Keep it under 200 words and cite a source for every claim."
@@ -112,11 +316,7 @@ function Steer() {
           </button>
         )}
         {!terminal && (
-          <button
-            type="button"
-            className="ws-btn"
-            onClick={() => raiseBudget((mission.budgetCents ?? 0) + 100)}
-          >
+          <button type="button" className="ws-btn" onClick={() => raiseBudget((mission.budgetCents ?? 0) + 100)}>
             +$1.00 budget
           </button>
         )}
@@ -193,7 +393,7 @@ function Artifacts() {
       {artifact ? (
         <>
           <button type="button" className="art-chip" onClick={view}>
-            <span aria-hidden="true">&#9636;</span>
+            <FileText size={14} aria-hidden="true" />
             <span className="art-chip-name">{artifact.name}</span>
           </button>
           {open && body != null && (

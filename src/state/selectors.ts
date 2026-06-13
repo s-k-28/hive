@@ -33,7 +33,10 @@ export function useCost(): CostView | null {
       const m = s.mission;
       if (!m) return null;
       const budget = m.budgetCents;
-      const spent = m.spentCents;
+      // Reflect accrued per-task cost immediately, even before the backend emits
+      // the next budget_updated event, so the meter never lags behind the board.
+      const taskSum = Object.values(s.tasks).reduce((a, t) => a + (t.costCents || 0), 0);
+      const spent = Math.max(m.spentCents, taskSum);
       const pct = budget && budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
       const over = budget != null && spent >= budget;
       const near = budget != null && !over && pct >= 80;
