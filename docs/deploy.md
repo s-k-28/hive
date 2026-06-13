@@ -5,8 +5,20 @@ have an InsForge account. Everything here is correct by construction against the
 verified cheat sheet (`docs/insforge-cheatsheet.md`); items the docs did not
 fully pin down are flagged UNVERIFIED with a fallback.
 
-You cannot test against a live project from the build environment, so this
-runbook is the contract for getting it right first try.
+LIVE STATUS (2026-06-13): this backend is deployed and verified on the project
+"Hive" (app key nmf6vbv4, us-east), hosted at https://nmf6vbv4.insforge.site. A
+real mission ran end to end: plan, workers, critics, risk gate, approve, assemble,
+artifact, complete. Two findings changed the architecture from this runbook:
+
+- InsForge edge functions CANNOT invoke other edge functions (every such call
+  returns HTTP 508 Loop Detected). The two functions were merged into ONE
+  (orchestrator) that runs the agent roles inline; agent-run was deleted. There is
+  no inter-function dispatch, so WORKER_TOKEN and FUNCTIONS_BASE_URL are no longer
+  read by the function (harmless if left set).
+- The Vite site build needs a package-lock.json resolved against the PUBLIC npm
+  registry, plus a .npmrc with legacy-peer-deps=true. A lockfile pointing at an
+  internal registry (for example artifacts.apple.com) makes the Vercel npm install
+  fail with "exited with 1".
 
 Repo layout this runbook assumes:
 
