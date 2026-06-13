@@ -102,17 +102,22 @@ Three subsystems turn the swarm from a black box into something you can govern, 
 - **Steering control plane (live human control).** Every cockpit action (pause, resume, raise budget, kill a task, approve or deny a gated step, inject a constraint) inserts an `interventions` row and kicks the orchestrator, which drains the queue and applies each one with guarded, idempotent updates. Injected constraints are appended to the mission guidance and the agents re-plan around them.
 - **Causal inspector (the flight recorder).** Click any task node to see why it ran (dependencies and recalled memories), its rendered-markdown output, its cost, and the ordered chain of events that touched it. A live cost meter and step counter sit in the control bar, and the final artifact opens in-app to copy or download.
 
-The signature moment is simple: a gate trips, the swarm stops and asks, and you steer it forward, all in real time, all rendered in the 3D scene.
+The signature moment is simple: a gate trips, the swarm stops and asks, and you steer it forward, all in real time, all rendered live in the cockpit.
 
-## The 3D mission control
+## The mission view
 
-react-three-fiber, drei, and postprocessing. One scene, three signature animations driven entirely by swarm events.
+The swarm currently renders as a static 2D task board (DOM, no canvas): the
+dependency graph laid out in dependency-depth columns, each task a glass card
+colored by status, with its live cost and risk flag, clickable to open the
+causal inspector. A risk gate hold outlines the held card in amber. It pairs
+with the live mission log, the control bar, and the gate prompt to make the
+whole run legible at a glance.
 
-1. **Task graph bloom in.** When the planner finishes, the task nodes materialize around the central goal core with animated light beam edges.
-2. **Thought streams.** While an agent works, particles flow along a curve from its orb to the task node, and its reasoning streams into the mission log.
-3. **Memory constellation.** Every stored memory ignites a new star in a background galaxy. Semantic recall draws light threads from those stars back to the agent that remembered. Mission completion fires a full scene bloom burst.
-
-Agent state drives everything. Idle is a slow orbit, thinking is a pulse with a particle halo, complete is a bright flash, error is a red shockwave. The camera auto orbits and smoothly focuses any agent you click. Performance is held at 60fps with an instanced constellation, capped draw calls, and a clamped device pixel ratio.
+A cinematic react-three-fiber version (energy core, orbiting agent orbs, a task
+DAG with flow beams, a memory constellation, completion bloom) also lives in the
+repo under `src/scene/`. It is currently swapped out of `App.tsx` in favor of the
+2D board and can be reinstated by importing `Scene` from `./scene/Scene` in place
+of `TaskBoard`.
 
 ## Run it
 

@@ -60,3 +60,151 @@ body,
   border: 1px solid var(--glass-border);
   border-radius: var(--radius);
 }
+
+/* =========================================================================
+   Task board: the static 2D swarm view that replaced the 3D scene. It is the
+   full-bleed backdrop layer (below the .overlay cockpit), with a subtle radial
+   wash so the glass panels still read against it.
+   ========================================================================= */
+
+.tb,
+.tb-empty {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(34, 211, 238, 0.06), transparent 55%),
+    radial-gradient(100% 80% at 50% 120%, rgba(245, 185, 74, 0.05), transparent 55%),
+    var(--bg);
+  overflow: auto;
+}
+
+/* Idle state, before any plan exists: a quiet pulsing core stand-in. */
+.tb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tb-empty-core {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, #ffce6b, var(--gold) 45%, rgba(245, 185, 74, 0.15) 70%, transparent 72%);
+  box-shadow: 0 0 80px 10px rgba(245, 185, 74, 0.25);
+  animation: tb-breathe 3.4s ease-in-out infinite;
+}
+
+@keyframes tb-breathe {
+  0%, 100% { transform: scale(0.94); opacity: 0.8; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+
+.tb-cols {
+  min-height: 100%;
+  display: flex;
+  gap: 22px;
+  align-items: flex-start;
+  /* Clear the header and control bar at the top, the roster/progress at bottom. */
+  padding: clamp(150px, 20vh, 220px) clamp(18px, 3vw, 40px) 140px;
+}
+
+.tb-col {
+  flex: 1 1 0;
+  min-width: 200px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tb-col-head {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(232, 237, 247, 0.4);
+  padding: 0 2px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.tb-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  padding: 13px 14px;
+  border-radius: 12px;
+  color: var(--ink);
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-left: 3px solid var(--accent, #3b4a66);
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.tb-card:hover {
+  transform: translateY(-2px);
+  background: rgba(20, 27, 45, 0.6);
+}
+
+.tb-card[data-focused='true'] {
+  border-color: rgba(245, 185, 74, 0.6);
+  box-shadow: 0 0 0 1px rgba(245, 185, 74, 0.3);
+}
+
+/* Status accent on the left rail. */
+.tb-card[data-status='pending']  { --accent: #3b4a66; }
+.tb-card[data-status='running']  { --accent: var(--cyan); }
+.tb-card[data-status='review']   { --accent: var(--gold); }
+.tb-card[data-status='rejected'] { --accent: var(--red); }
+.tb-card[data-status='accepted'] { --accent: var(--green); }
+.tb-card[data-status='failed']   { --accent: #7a1020; }
+.tb-card[data-status='killed']   { --accent: rgba(232, 237, 247, 0.18); opacity: 0.5; }
+
+/* Risk gate hold: amber outline so the eye goes straight to it. */
+.tb-card[data-gated='true'] {
+  --accent: var(--gold);
+  border-color: rgba(245, 185, 74, 0.6);
+  box-shadow: 0 0 24px -6px rgba(245, 185, 74, 0.6);
+}
+
+.tb-card-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.tb-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+
+.tb-card-status {
+  color: var(--ink-dim);
+}
+
+.tb-card-cost {
+  font-family: var(--font-mono);
+  color: rgba(232, 237, 247, 0.7);
+}
+
+.tb-card-risk {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gold);
+  border: 1px solid rgba(245, 185, 74, 0.4);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tb-empty-core { animation: none; }
+}
