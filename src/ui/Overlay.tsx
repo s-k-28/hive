@@ -14,10 +14,10 @@ import { getCurrentUser, type AuthUser } from '../lib/mission';
 import { useSwarm } from '../state/swarm';
 
 /**
- * Glassmorphic DOM overlay above the 3D scene. The reactive consumer of the
- * swarm store (the scene is the transient consumer). The root is transparent to
- * pointer events; only children marked `.interactive` capture input, so clicks
- * fall through to the canvas everywhere else.
+ * Glassmorphic DOM overlay above the mission board. The reactive consumer of the
+ * swarm store. The root is transparent to pointer events; only children marked
+ * `.interactive` capture input, so clicks fall through to the board everywhere
+ * else.
  *
  * Control tower additions: a ControlBar (pause/resume, cost meter, steps), the
  * GatePrompt (the stop-and-ask moment), the causal Inspector, and the Auth and

@@ -1,11 +1,11 @@
 /**
  * The Hive swarm protocol.
  *
- * Single source of truth shared by the edge functions (Deno), the state
- * layer, and the 3D scene. The backend writes rows to the `events` table;
- * a database trigger publishes each row to the realtime channel
- * `mission:{missionId}`; the frontend reduces them into scene state.
- * Field names use camelCase in payloads and snake_case in table columns.
+ * Single source of truth shared by the edge functions (Deno), the state layer,
+ * and the UI. The backend writes rows to the `events` table; a database trigger
+ * publishes each row to the realtime channel `mission:{missionId}`; the frontend
+ * reduces them into board and cockpit state. Field names use camelCase in
+ * payloads and snake_case in table columns.
  */
 
 export type AgentRole = 'planner' | 'worker' | 'critic' | 'assembler';
@@ -115,7 +115,8 @@ export interface SwarmEventRecord {
 }
 
 // ---------------------------------------------------------------------------
-// Scene mapping reference (binding for the 3D scene):
+// Scene mapping reference (binding for the dormant react-three-fiber scene under
+// src/scene/, kept for reference; the live UI is the DOM mission board):
 //   mission_started   -> core ignites
 //   agent_spawned     -> orb fades in, takes orbit
 //   plan_created      -> task graph bloom-in animation (signature #1)

@@ -4,9 +4,9 @@ import { Overlay } from './ui/Overlay';
 /**
  * Composition root.
  *
- * The 3D scene (react-three-fiber) has been swapped out for a static, DOM-only
- * task board for now. The scene code still lives in src/scene/ and can be
- * reinstated by importing Scene from './scene/Scene' in place of TaskBoard.
+ * The live swarm view is the DOM mission board (TaskBoard). A dormant
+ * react-three-fiber scene remains under src/scene/ for reference only and is not
+ * mounted by the app.
  *
  * Ownership boundaries:
  *  - src/ui/**    owns the DOM (entry: TaskBoard for the swarm view, Overlay for the cockpit)

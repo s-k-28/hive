@@ -9,11 +9,10 @@ import type {
 import { AGENT_ROSTER } from '../lib/types';
 
 /**
- * Swarm store. Fed by realtime events (or the local simulation), read two
- * ways:
- *  - reactively (selector hooks) by the DOM overlay
- *  - transiently (useSwarm.getState() inside useFrame) by the 3D scene,
- *    so events never re-render the canvas tree.
+ * Swarm store. Fed by realtime events (or the local simulation) and read
+ * reactively (selector hooks) by the DOM mission board and the glass cockpit.
+ * The dormant react-three-fiber scene under src/scene/ reads it transiently
+ * (useSwarm.getState() inside useFrame), but it is not mounted by the app.
  */
 
 export interface AgentRuntime {

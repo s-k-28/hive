@@ -4,7 +4,7 @@
 
 ### The live control tower for AI agents.
 
-Run a team of AI agents you can see, stop, and steer in real time. Give them a goal, watch them plan, execute, review their own work, and ship the result, rendered as a cinematic 3D mission control, with a live cost meter, hard safety gates, and a flight recorder for every decision. It all runs entirely inside InsForge.
+Run a team of AI agents you can see, stop, and steer in real time. Give them a goal, watch them plan, execute, review their own work, and ship the result, rendered as a live mission board where every task is a card you can open, with a live cost meter, hard safety gates, and a flight recorder for every decision. It all runs entirely inside InsForge.
 
 Built for the InsForge Hack, June 2026.
 
@@ -30,7 +30,7 @@ HIVE makes an agent swarm safe to run. Three subsystems sit on top of the engine
 - **The steering control plane.** From the cockpit you pause and resume, raise the budget, kill a task, approve or deny a gated action, and inject a constraint the agents re-plan around, all live, mid-run.
 - **The causal inspector (flight recorder).** Click any node to see why it ran (its dependencies and recalled memories), what it produced (rendered markdown), and what it cost, plus a live cost meter and the final downloadable artifact.
 
-You still watch every agent reason in plain language, see which earlier findings each one recalls from shared memory, and watch a critic reject weak work and send it back before anything ships. Now you can also stop it, steer it, and audit it. The 3D mission control is how that control is made tangible: the swarm thinking and the swarm rendering are the same event stream, so oversight is not bolted on the side, it is the architecture.
+You still watch every agent reason in plain language, see which earlier findings each one recalls from shared memory, and watch a critic reject weak work and send it back before anything ships. Now you can also stop it, steer it, and audit it. The live mission board is how that control is made tangible: every card is a Postgres row and every change is a realtime event, so oversight is not bolted on the side, it is the architecture.
 
 ## How HIVE uses every InsForge primitive
 
@@ -40,7 +40,7 @@ You still watch every agent reason in plain language, see which earlier findings
 | Edge functions | `orchestrator` (a race-safe tick that drains interventions, enforces the gates, then assigns ready tasks) and `agent-run` (claim, reason, act, report, account for cost) |
 | AI gateway | All agent reasoning and all embeddings, through the OpenAI compatible project endpoint, with per-step token cost metered live |
 | pgvector | Shared swarm memory. Agents store what they learn, later agents recall it by meaning |
-| Realtime | A database trigger publishes every `events` row to `mission:{id}`. The 3D scene, the cost meter, and the gate prompt all react live |
+| Realtime | A database trigger publishes every `events` row to `mission:{id}`. The live mission board, the cost meter, and the gate prompt all react live |
 | Auth | Missions are scoped to the signed in user, with a "your missions" history that replays a past run |
 | Storage | The final deliverable is written to a bucket and opened, copied, or downloaded straight from the UI |
 | Hosting | The site itself is deployed on InsForge |
@@ -77,7 +77,7 @@ This is the point of the project: not one primitive used well, but the whole pla
                                                           v
                               +--------------------------------------------------+
                               |   Browser: realtime subscription -> zustand store |
-                              |     +-> 3D scene  (transient reads, 60fps)        |
+                              |     +-> live mission board (DAG of task cards)    |
                               |     +-> glass overlay (reactive selectors)        |
                               +--------------------------------------------------+
                                        artifact -> Storage bucket -> download
@@ -91,33 +91,32 @@ Six agents, four roles, all executed by the same `agent-run` edge function with 
 
 - **Planner** (gold). Decomposes the goal into four to seven tasks with explicit dependencies.
 - **Workers** (cyan, three of them). Claim ready tasks, recall relevant memories from pgvector, reason through the AI gateway, write results, and store new memories.
-- **Critic** (magenta). Reviews completed work. Can bounce a task back with feedback, which the scene shows as a red pulse traveling back to the task node.
+- **Critic** (magenta). Reviews completed work. Can bounce a task back with feedback, which the board shows by flipping that task card to its rejected treatment before a worker picks it back up.
 - **Assembler** (green). Composes the accepted task outputs into the final artifact and uploads it to Storage.
 
 ## The control tower
 
 Three subsystems turn the swarm from a black box into something you can govern, observe, and steer, all enforced in the backend and surfaced in the cockpit.
 
-- **Gate engine (the circuit breaker).** Each mission carries a cost budget and a step cap, and the planner tags one high-impact step as a risk. The orchestrator checks all three at the top of every tick, before any dispatch. Hit the budget or the step cap and the mission pauses; reach the risk step and it holds for explicit approval. The energy core visibly strains as the budget is spent.
+- **Gate engine (the circuit breaker).** Each mission carries a cost budget and a step cap, and the planner tags one high-impact step as a risk. The orchestrator checks all three at the top of every tick, before any dispatch. Hit the budget or the step cap and the mission pauses; reach the risk step and it holds for explicit approval. The cost meter fills toward the budget as spend climbs.
 - **Steering control plane (live human control).** Every cockpit action (pause, resume, raise budget, kill a task, approve or deny a gated step, inject a constraint) inserts an `interventions` row and kicks the orchestrator, which drains the queue and applies each one with guarded, idempotent updates. Injected constraints are appended to the mission guidance and the agents re-plan around them.
-- **Causal inspector (the flight recorder).** Click any task node to see why it ran (dependencies and recalled memories), its rendered-markdown output, its cost, and the ordered chain of events that touched it. A live cost meter and step counter sit in the control bar, and the final artifact opens in-app to copy or download.
+- **Causal inspector (the flight recorder).** Click any task card to see why it ran (dependencies and recalled memories), its rendered-markdown output, its cost, and the ordered chain of events that touched it. A live cost meter and step counter sit in the control bar, and the final artifact opens in-app to copy or download.
 
 The signature moment is simple: a gate trips, the swarm stops and asks, and you steer it forward, all in real time, all rendered live in the cockpit.
 
 ## The mission view
 
-The swarm currently renders as a static 2D task board (DOM, no canvas): the
-dependency graph laid out in dependency-depth columns, each task a glass card
-colored by status, with its live cost and risk flag, clickable to open the
-causal inspector. A risk gate hold outlines the held card in amber. It pairs
-with the live mission log, the control bar, and the gate prompt to make the
-whole run legible at a glance.
-
-A cinematic react-three-fiber version (energy core, orbiting agent orbs, a task
-DAG with flow beams, a memory constellation, completion bloom) also lives in the
-repo under `src/scene/`. It is currently swapped out of `App.tsx` in favor of the
-2D board and can be reinstated by importing `Scene` from `./scene/Scene` in place
-of `TaskBoard`.
+The swarm renders as a live mission board: a DOM directed acyclic graph of the
+plan, laid out in dependency-depth columns with drawn connector edges so the
+structure reads at a glance. Each task is a glass card with a distinct premium
+treatment per status, a working indicator while it runs, and its live cost and
+risk flag. Cards ease in when the plan lands and animate smoothly as they move
+pending to running to review to accepted. A risk gate hold pulses the held card
+amber and raises the gate prompt. Every card opens the causal inspector on click
+or keyboard activation. It pairs with the live mission log, the control bar, and
+the gate prompt to make the whole run legible at a glance. The board is fast and
+DOM only: no canvas, and connector edges are recomputed only when the plan
+structure changes, never per frame.
 
 ## Run it
 
@@ -153,27 +152,27 @@ This project is held to a product standard, not a hackathon standard.
 - TypeScript strict across the whole codebase. Lint and typecheck are green.
 - Unit tests cover the swarm reducer (every event type, ordering, deduplication, failure paths) and the orchestration logic. Tests passing is a release gate.
 - Zero console errors. No dead UI states. Every realtime event type has a rendered consequence.
-- 60fps on a laptop, verified.
+- A fast, fluid DOM board: smooth transitions, no layout thrash, no per-frame work.
 
 ## Repository layout
 
 ```
 hive/
   src/
-    scene/        3D mission control (r3f): core, agent orbs, task graph, constellation, effects
+    ui/           the live mission board plus the glass cockpit: console, control bar, gate prompt, inspector, log, roster, artifact, auth, history
     state/        zustand stores fed by realtime events, plus the local simulation
-    ui/           glass overlay: console, control bar, gate prompt, inspector, log, roster, artifact, auth, history
     lib/          InsForge client, auth + steering helpers, and the swarm protocol shared with the functions
+    scene/        a dormant react-three-fiber scene, not mounted by the app, kept for reference only
   functions/
     orchestrator  the tick: drains interventions, enforces the gates, assigns ready tasks
     agent-run     claim, reason via the AI gateway, report, store memory, account for cost
   migrations/     SQL: tables, RLS, the realtime publish trigger, pgvector, the control tower schema
-  docs/           research brief, r3f playbook, InsForge cheat sheet, deploy guide
+  docs/           research brief, InsForge cheat sheet, deploy guide
 ```
 
 ## Judging dimensions, addressed directly
 
 - **Technical execution.** The whole InsForge platform composed into one coherent system, a race safe and idempotent tick orchestrator that drains a steering queue and enforces three kinds of gate, per-step cost accounting, pgvector memory recall, trigger based realtime, all tested.
-- **Design quality.** A custom 3D interface and a hand built glass cockpit, no component library, no template aesthetic, with instant legible feedback for every control.
+- **Design quality.** A custom live mission board and a hand built glass cockpit, no component library, no template aesthetic, with instant legible feedback for every control.
 - **Potential impact.** Agents you can trust in production. You hand a goal to a team of agents and watch them work, with a budget, hard gates, live steering, and a full causal record, instead of trusting a black box.
 - **Idea quality.** The backend is the product. The thing that streams the agents to you is the same thing that runs them, governs them, and lets you steer them.
