@@ -626,6 +626,91 @@ async function runPlanner(
   // moves to running on plan_created.
 }
 
+// --- live browser tool (Phase 2, gated) -----------------------------------
+//
+// When HIVE_BROWSER_ENABLED is set, a worker can drive a real Chrome through an
+// external agent-browser control shim (see phase2/RUNBOOK.md) and fold real
+// page text into its context. The shim is a normal external HTTPS endpoint, so
+// this is an ordinary fetch and is not subject to the InsForge
+// function-to-function 508 rule. Every call is best-effort and never fails the
+// task. Defaults off, so the standard mission path is unchanged.
+
+const browserEnabled = (): boolean =>
+  (Deno.env.get("HIVE_BROWSER_ENABLED") ?? "") !== "";
+
+async function browserAct(argv: string[]): Promise<{ ok: boolean; stdout: string }> {
+  const url = Deno.env.get("BROWSER_DAEMON_URL");
+  const token = Deno.env.get("BROWSER_DAEMON_TOKEN");
+  if (!url || !token) return { ok: false, stdout: "" };
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ argv }),
+    });
+    if (!res.ok) return { ok: false, stdout: "" };
+    // deno-lint-ignore no-explicit-any
+    const json = (await res.json().catch(() => null)) as any;
+    return { ok: Boolean(json?.ok), stdout: String(json?.stdout ?? "") };
+  } catch {
+    return { ok: false, stdout: "" };
+  }
+}
+
+// Pick one real URL for this task, open it in the live browser, and return a
+// short extract to fold into the worker prompt. Returns "" on any problem.
+async function maybeBrowse(
+  db: ReturnType<typeof admin>,
+  missionId: string,
+  agent: string,
+  taskId: string,
+  ai: OpenAI,
+  goal: string,
+  task: TaskRow,
+): Promise<string> {
+  if (!browserEnabled()) return "";
+  try {
+    const pick = await chat(ai, {
+      model: MODELS.worker(),
+      messages: [
+        {
+          role: "system",
+          content:
+            "Output exactly one https URL and nothing else: the single best " +
+            "public page to read for the task. Prefer official docs, pricing, " +
+            "or product pages.",
+        },
+        {
+          role: "user",
+          content: `Mission: ${goal}\nTask: ${task.title}\n${task.description ?? ""}`,
+        },
+      ],
+      temperature: 0,
+    });
+    const raw = (pick.choices?.[0]?.message?.content ?? "").trim();
+    const target = raw.match(/https?:\/\/[^\s)"']+/)?.[0];
+    if (!target) return "";
+
+    await emitEvent(db, missionId, "agent_thought", {
+      agent,
+      taskId,
+      text: `Browsing ${target} for live research.`,
+    });
+    await emitEvent(db, missionId, "browser_opened", { agent, taskId, url: target });
+
+    if (!(await browserAct(["open", target])).ok) return "";
+    const body = await browserAct(["get", "text", "body"]);
+    const extract = body.stdout.replace(/\s+/g, " ").trim().slice(0, 1500);
+    return extract ? `\n\nLive web research from ${target}:\n${extract}` : "";
+  } catch (e) {
+    console.error("browse failed (continuing)", e);
+    return "";
+  }
+}
+
 // --- worker ---------------------------------------------------------------
 
 async function runWorker(
@@ -700,6 +785,10 @@ async function runWorker(
     ? `\n\nOperator guidance to respect throughout: ${guidance}`
     : "";
 
+  // Phase 2 (gated, off by default): fold in real web research from a live
+  // browser. Best-effort; returns "" when disabled or on any failure.
+  const webResearch = await maybeBrowse(db, missionId, agent, taskId, ai, goal, task);
+
   const system =
     "You are a Worker agent in an autonomous swarm. Complete exactly the one " +
     "task assigned, producing a concise, concrete, useful result in clean " +
@@ -712,7 +801,8 @@ async function runWorker(
     (task.description ? `Details: ${task.description}\n` : "") +
     memoryContext +
     retryNote +
-    guidanceNote;
+    guidanceNote +
+    webResearch;
 
   const completion = await chat(ai, {
     model: MODELS.worker(),
