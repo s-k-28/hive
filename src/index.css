@@ -62,149 +62,389 @@ body,
 }
 
 /* =========================================================================
-   Task board: the static 2D swarm view that replaced the 3D scene. It is the
-   full-bleed backdrop layer (below the .overlay cockpit), with a subtle radial
-   wash so the glass panels still read against it.
+   The mission board: the single live view of the swarm. A DOM-only DAG of glass
+   task cards in dependency-depth columns, with drawn connector edges, premium
+   per-status treatments, and tasteful live motion. Full-bleed backdrop layer
+   below the .overlay cockpit.
    ========================================================================= */
 
-.tb,
-.tb-empty {
+.tb {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(120% 90% at 50% 0%, rgba(34, 211, 238, 0.06), transparent 55%),
-    radial-gradient(100% 80% at 50% 120%, rgba(245, 185, 74, 0.05), transparent 55%),
+    radial-gradient(130% 90% at 50% -10%, rgba(34, 211, 238, 0.08), transparent 55%),
+    radial-gradient(120% 90% at 50% 115%, rgba(245, 185, 74, 0.06), transparent 55%),
+    radial-gradient(80% 60% at 85% 30%, rgba(227, 79, 208, 0.05), transparent 60%),
     var(--bg);
-  overflow: auto;
 }
 
-/* Idle state, before any plan exists: a quiet pulsing core stand-in. */
-.tb-empty {
+/* Faint hex/grid wash so the dark field has texture behind the glass. */
+.tb::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(120% 100% at 50% 0%, #000 30%, transparent 80%);
+  pointer-events: none;
+}
+
+.tb-scroll {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+.tb-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.tb-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 4px; }
+
+/* ---- Idle state, before any plan exists -------------------------------- */
+
+.tb-idle {
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.tb-empty-core {
-  width: 180px;
-  height: 180px;
+.tb-idle-core {
+  position: absolute;
+  width: 200px;
+  height: 200px;
   border-radius: 50%;
-  background: radial-gradient(circle at 50% 45%, #ffce6b, var(--gold) 45%, rgba(245, 185, 74, 0.15) 70%, transparent 72%);
-  box-shadow: 0 0 80px 10px rgba(245, 185, 74, 0.25);
-  animation: tb-breathe 3.4s ease-in-out infinite;
+  background: radial-gradient(circle at 50% 45%, #ffce6b, var(--gold) 42%, rgba(245, 185, 74, 0.12) 70%, transparent 72%);
+  box-shadow: 0 0 90px 12px rgba(245, 185, 74, 0.22);
+  animation: tb-breathe 3.6s ease-in-out infinite;
+}
+
+.tb-idle-ring {
+  position: absolute;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  border: 1px solid rgba(245, 185, 74, 0.18);
+  animation: tb-ring 3.6s ease-in-out infinite;
 }
 
 @keyframes tb-breathe {
-  0%, 100% { transform: scale(0.94); opacity: 0.8; }
-  50% { transform: scale(1.04); opacity: 1; }
+  0%, 100% { transform: scale(0.94); opacity: 0.82; }
+  50% { transform: scale(1.05); opacity: 1; }
 }
 
+@keyframes tb-ring {
+  0%, 100% { transform: scale(0.92); opacity: 0.3; }
+  50% { transform: scale(1.08); opacity: 0.7; }
+}
+
+/* ---- Connector edges (SVG, behind the cards) --------------------------- */
+
+.tb-edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tb-edge {
+  fill: none;
+  stroke: rgba(124, 142, 176, 0.32);
+  stroke-width: 1.5;
+  transition: stroke 0.4s ease;
+}
+
+/* Work flowing into a child task lights its incoming edges with a moving dash. */
+.tb-edge[data-flow='true'] {
+  stroke: rgba(34, 211, 238, 0.7);
+  stroke-width: 2;
+  stroke-dasharray: 5 7;
+  animation: tb-flow 0.9s linear infinite;
+}
+
+@keyframes tb-flow {
+  to { stroke-dashoffset: -24; }
+}
+
+/* ---- Columns and cards ------------------------------------------------- */
+
 .tb-cols {
+  position: relative;
+  z-index: 1;
   min-height: 100%;
   display: flex;
-  gap: 22px;
+  gap: clamp(40px, 5vw, 84px);
   align-items: flex-start;
-  /* Clear the header and control bar at the top, the roster/progress at bottom. */
-  padding: clamp(150px, 20vh, 220px) clamp(18px, 3vw, 40px) 140px;
+  width: max-content;
+  /* Clear the header and control bar at the top, roster/progress at bottom. */
+  padding: clamp(150px, 19vh, 215px) clamp(28px, 5vw, 72px) 150px;
 }
 
 .tb-col {
-  flex: 1 1 0;
-  min-width: 200px;
-  max-width: 320px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  width: 264px;
 }
 
 .tb-col-head {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(232, 237, 247, 0.4);
-  padding: 0 2px 4px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-}
-
-.tb-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  text-align: left;
-  font: inherit;
-  cursor: pointer;
-  padding: 13px 14px;
-  border-radius: 12px;
-  color: var(--ink);
-  background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--glass-border);
-  border-left: 3px solid var(--accent, #3b4a66);
-  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
-}
-
-.tb-card:hover {
-  transform: translateY(-2px);
-  background: rgba(20, 27, 45, 0.6);
-}
-
-.tb-card[data-focused='true'] {
-  border-color: rgba(245, 185, 74, 0.6);
-  box-shadow: 0 0 0 1px rgba(245, 185, 74, 0.3);
-}
-
-/* Status accent on the left rail. */
-.tb-card[data-status='pending']  { --accent: #3b4a66; }
-.tb-card[data-status='running']  { --accent: var(--cyan); }
-.tb-card[data-status='review']   { --accent: var(--gold); }
-.tb-card[data-status='rejected'] { --accent: var(--red); }
-.tb-card[data-status='accepted'] { --accent: var(--green); }
-.tb-card[data-status='failed']   { --accent: #7a1020; }
-.tb-card[data-status='killed']   { --accent: rgba(232, 237, 247, 0.18); opacity: 0.5; }
-
-/* Risk gate hold: amber outline so the eye goes straight to it. */
-.tb-card[data-gated='true'] {
-  --accent: var(--gold);
-  border-color: rgba(245, 185, 74, 0.6);
-  box-shadow: 0 0 24px -6px rgba(245, 185, 74, 0.6);
-}
-
-.tb-card-title {
-  font-size: 13.5px;
-  font-weight: 500;
-  line-height: 1.35;
-}
-
-.tb-card-meta {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-  font-size: 11px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(232, 237, 247, 0.42);
+  padding-bottom: 6px;
+}
+
+.tb-col-rail {
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--gold), transparent);
+}
+
+.tb-card {
+  --accent: #46587a;
+  --accent-soft: rgba(70, 88, 122, 0.16);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  padding: 14px 15px 13px;
+  border-radius: 14px;
+  color: var(--ink);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0) 60%),
+    var(--glass-bg);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 14px 36px -20px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  /* Entrance: each card eases in when the plan lands. */
+  animation: tb-card-in 0.5s cubic-bezier(0.22, 0.85, 0.3, 1) both;
+  transition:
+    transform 0.22s cubic-bezier(0.22, 0.85, 0.3, 1),
+    border-color 0.35s ease,
+    box-shadow 0.35s ease,
+    opacity 0.35s ease;
+}
+
+/* The status accent rail down the left edge of every card. */
+.tb-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+  transition: background 0.35s ease, box-shadow 0.35s ease;
+}
+
+@keyframes tb-card-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.tb-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--glass-border));
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 22px 50px -22px rgba(0, 0, 0, 0.9),
+    0 0 28px -14px var(--accent);
+}
+
+.tb-card:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 22px 50px -22px rgba(0, 0, 0, 0.9);
+}
+
+.tb-card[data-focused] {
+  border-color: rgba(245, 185, 74, 0.65);
+  box-shadow:
+    0 0 0 1px rgba(245, 185, 74, 0.35),
+    0 22px 50px -22px rgba(0, 0, 0, 0.9),
+    0 0 30px -12px rgba(245, 185, 74, 0.5);
+}
+
+/* ---- Per-status premium treatments ------------------------------------- */
+
+.tb-card[data-status='pending']  { --accent: #46587a; --accent-soft: rgba(70, 88, 122, 0.14); opacity: 0.86; }
+.tb-card[data-status='running']  { --accent: var(--cyan); --accent-soft: rgba(34, 211, 238, 0.16); }
+.tb-card[data-status='review']   { --accent: var(--gold); --accent-soft: rgba(245, 185, 74, 0.16); }
+.tb-card[data-status='accepted'] { --accent: var(--green); --accent-soft: rgba(154, 245, 122, 0.16); }
+.tb-card[data-status='rejected'] { --accent: var(--red); --accent-soft: rgba(255, 34, 68, 0.16); }
+.tb-card[data-status='failed']   { --accent: #b3263c; --accent-soft: rgba(179, 38, 60, 0.16); }
+.tb-card[data-status='killed']   { --accent: #55607a; opacity: 0.42; filter: saturate(0.5); }
+
+/* Running: a soft moving sheen sweeps the card to read as live work. */
+.tb-card[data-status='running'] {
+  border-color: color-mix(in srgb, var(--cyan) 40%, var(--glass-border));
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 18px 44px -22px rgba(0, 0, 0, 0.85),
+    0 0 30px -16px var(--cyan);
+}
+
+.tb-card[data-status='running']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(34, 211, 238, 0.12) 50%, transparent 70%);
+  background-size: 220% 100%;
+  animation: tb-sheen 2.1s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes tb-sheen {
+  0% { background-position: 130% 0; }
+  100% { background-position: -130% 0; }
+}
+
+.tb-card[data-status='accepted'] {
+  border-color: color-mix(in srgb, var(--green) 38%, var(--glass-border));
+}
+
+/* Gate hold: an unmistakable pulsing amber state that pulls the eye. */
+.tb-card[data-gated] {
+  --accent: var(--gold);
+  border-color: rgba(245, 185, 74, 0.7);
+  animation: tb-card-in 0.5s cubic-bezier(0.22, 0.85, 0.3, 1) both, tb-gate 1.5s ease-in-out infinite;
+}
+
+@keyframes tb-gate {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(245, 185, 74, 0.3), 0 18px 44px -22px rgba(0,0,0,0.85), 0 0 18px -6px rgba(245, 185, 74, 0.45); }
+  50% { box-shadow: 0 0 0 1px rgba(245, 185, 74, 0.6), 0 18px 44px -22px rgba(0,0,0,0.85), 0 0 40px -2px rgba(245, 185, 74, 0.8); }
+}
+
+/* ---- Card internals ---------------------------------------------------- */
+
+.tb-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tb-card-dot {
+  position: relative;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  flex: none;
+}
+
+/* Working indicator: a ring spins around the dot on running cards. */
+.tb-card-spin {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  border-top-color: var(--cyan);
+  border-right-color: color-mix(in srgb, var(--cyan) 40%, transparent);
+  animation: tb-spin 0.85s linear infinite;
+}
+
+@keyframes tb-spin {
+  to { transform: rotate(360deg); }
 }
 
 .tb-card-status {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.tb-card[data-status='pending'] .tb-card-status,
+.tb-card[data-status='killed'] .tb-card-status {
   color: var(--ink-dim);
 }
 
-.tb-card-cost {
-  font-family: var(--font-mono);
-  color: rgba(232, 237, 247, 0.7);
-}
-
 .tb-card-risk {
+  margin-left: auto;
   font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.04em;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--gold);
+  background: rgba(245, 185, 74, 0.1);
   border: 1px solid rgba(245, 185, 74, 0.4);
   border-radius: 999px;
-  padding: 1px 7px;
+  padding: 2px 8px;
 }
 
+.tb-card-risk[data-approved] {
+  color: var(--green);
+  background: rgba(154, 245, 122, 0.1);
+  border-color: rgba(154, 245, 122, 0.4);
+}
+
+.tb-card-title {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0.005em;
+  color: var(--ink);
+}
+
+.tb-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.tb-card-cost {
+  color: rgba(232, 237, 247, 0.75);
+  font-variant-numeric: tabular-nums;
+  transition: color 0.3s ease;
+}
+
+.tb-card-cost-zero {
+  color: rgba(232, 237, 247, 0.32);
+}
+
+.tb-card-attempts {
+  color: var(--gold);
+  background: rgba(245, 185, 74, 0.08);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+
+/* ---- Reduced motion: keep the design, drop the looping/entrance motion -- */
+
 @media (prefers-reduced-motion: reduce) {
-  .tb-empty-core { animation: none; }
+  .tb-idle-core,
+  .tb-idle-ring,
+  .tb-card,
+  .tb-card[data-gated],
+  .tb-card[data-status='running']::after,
+  .tb-card-spin,
+  .tb-edge[data-flow='true'] {
+    animation: none;
+  }
+  .tb-card { transition: border-color 0.2s ease, box-shadow 0.2s ease; }
 }
