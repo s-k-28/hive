@@ -8,6 +8,14 @@ so a broken stream cannot affect the main product.
 
 ## What is proven
 
+- PROVEN LIVE (2026-06-13): the deployed InsForge orchestrator drove a real
+  Chrome through a cloudflared tunnel. A research mission's workers opened
+  `https://vercel.com/pricing`, extracted real prices ($20/member/month, 1TB
+  bandwidth, 3 concurrent builds), and folded them into their output; the critic
+  accepted and the risk gate fired, all on the live backend. Proof image:
+  `docs/qa/phase2-live-vercel.png`. The feature was then disarmed (browser
+  secrets removed, orchestrator redeployed) so the public site stays
+  self-contained until we deliberately re-arm for the demo.
 - `npm i -g agent-browser` installs the native CLI. It auto-detects the system
   Chrome, so no separate Chrome download is needed.
 - `agent-browser open <url>`, `snapshot`, `get text <sel>`, `screenshot` all work.
