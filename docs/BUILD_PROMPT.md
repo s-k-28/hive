@@ -324,10 +324,9 @@ project: watch the cost meter, trip the risk gate, steer (approve, inject, raise
 budget, kill), confirm a clean completion and a downloadable artifact, zero
 console errors. Fix anything. Final deploy. Commit.
 
-Phase 7: demo video script (see section 8). Commit the script.
-
 If time compresses, cut in this order: history (Phase 5) first, then inspector
-depth, then one steering action. Never cut the gate-trips-and-you-steer moment.
+depth, then one steering action. Never cut the gate-trips-and-you-steer moment,
+which is the heart of the product.
 
 ## 6. How to execute: multi-agent with verification
 
@@ -368,32 +367,16 @@ independent verification agents, exactly as a strong team would:
   changes. Update the README's tagline and "Why this matters" to the control
   tower positioning.
 
-## 8. Demo video (sub-3-minute narrated screencast)
-
-Record the deployed app. Structure:
-- 0:00-0:20 name and problem: agents are powerful and impossible to trust in
-  production; they run away, burn thousands, and you find out too late.
-- 0:20-1:00 launch a real mission in the 3D cockpit; the cost meter climbs; click
-  a node to show the live causal trace.
-- 1:00-1:50 a task hits the risk gate; the swarm pauses and asks. The money shot:
-  it stopped itself before the risky action.
-- 1:50-2:30 steer live: inject a constraint, raise the budget, approve the gate;
-  the swarm adapts and finishes under budget; open the artifact.
-- 2:30-3:00 cut to the InsForge dashboard (tables, the events stream, the
-  Realtime channel, the functions) and close: the agents, their state, their
-  governance, and this whole control tower run on InsForge. Show the hosted URL.
-Narrate the InsForge integration on screen at least twice.
-
-## 9. Definition of done
+## 8. Definition of done
 
 - A signed-in user on the hosted InsForge URL launches a real mission, watches it
   in the cockpit with a live cost meter, sees a gate trip, steers the swarm live,
   and gets a real, readable, downloadable artifact, with zero console errors.
 - The new gate math and every new reducer event are unit tested; lint, typecheck,
   build, and the full test suite are green.
-- The sub-3-minute video shows the run, the gate, the steer, and the InsForge
-  plumbing.
+- The whole experience feels like a finished product: no dead states, no rough
+  edges, premium visuals, instant and legible feedback for every action.
 - All work is committed and pushed to https://github.com/s-k-28/hive, repo
   public, no secrets leaked.
 
-Build it clean, verify it adversarially, and make it win.
+Build it clean, verify it adversarially, and make it the best product it can be.
