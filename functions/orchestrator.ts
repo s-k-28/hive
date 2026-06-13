@@ -299,6 +299,10 @@ async function consumeInterventions(
               .eq("id", missionId)
               .eq("status", "awaiting_input");
             await emitEvent(db, missionId, "task_killed", { taskId });
+            // Emit mission_resumed so the cockpit leaves the held state at once,
+            // symmetric with approve_gate (the reducer lifts awaiting_input only
+            // on a resume event, not on task_killed alone).
+            await emitEvent(db, missionId, "mission_resumed", {});
             await emitEvent(db, missionId, "intervention_applied", {
               kind: "deny",
               taskId,

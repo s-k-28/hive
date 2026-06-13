@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   runSimulation,
   simApproveGate,
+  simDenyGate,
   simInjectNote,
   simPause,
   simResume,
@@ -119,5 +120,18 @@ describe('runSimulation', () => {
     expect(useSwarm.getState().gate).toBeNull();
     vi.advanceTimersByTime(40_000);
     expect(useSwarm.getState().mission?.status).toBe('complete');
+  });
+
+  it('denying the gated step leaves the held state and kills the task', () => {
+    // Regression: deny must emit mission_resumed so the cockpit never stalls in
+    // awaiting_input after the backend has moved on.
+    runSimulation();
+    vi.advanceTimersByTime(22_000);
+    expect(useSwarm.getState().mission?.status).toBe('awaiting_input');
+    simDenyGate('task-plan');
+    const s = useSwarm.getState();
+    expect(s.gate).toBeNull();
+    expect(s.mission?.status).not.toBe('awaiting_input');
+    expect(s.tasks['task-plan'].status).toBe('killed');
   });
 });

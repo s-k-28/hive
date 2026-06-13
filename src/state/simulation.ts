@@ -221,6 +221,8 @@ export function simApproveGate(taskId: string): void {
 
 export function simDenyGate(taskId: string): void {
   steer({ type: 'task_killed', taskId });
+  // Mirror the live deny path: leave the held state at once via mission_resumed.
+  steer({ type: 'mission_resumed' });
   steer({ type: 'intervention_applied', kind: 'deny', taskId, note: 'Denied by operator' });
 }
 
