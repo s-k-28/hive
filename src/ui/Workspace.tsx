@@ -193,6 +193,7 @@ function LaunchBriefing() {
   const [repo, setRepo] = useState<RepoRef | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [clarifyOpen, setClarifyOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Open the clarifier first; the swarm launches only after the operator answers
   // (or skips), so the mission starts aligned and with the chosen specialists.
@@ -205,9 +206,11 @@ function LaunchBriefing() {
     setClarifyOpen(false);
     const dollars = parseFloat(budget);
     const budgetCents = Number.isFinite(dollars) && dollars > 0 ? Math.round(dollars * 100) : null;
-    startMission(goal.trim(), { budgetCents, repo, guidance: brief }).catch((err) =>
-      console.error('[hive] mission launch failed', err),
-    );
+    setError(null);
+    startMission(goal.trim(), { budgetCents, repo, guidance: brief }).catch((err) => {
+      console.error('[hive] mission launch failed', err);
+      setError(err instanceof Error ? err.message : 'Could not start the mission. Please try again.');
+    });
   };
 
   const examples = repo ? REPO_EXAMPLE_GOALS : EXAMPLE_GOALS;
@@ -277,6 +280,11 @@ function LaunchBriefing() {
               Launch swarm
             </Button>
           </div>
+          {error && (
+            <p role="alert" style={{ marginTop: 12, color: 'var(--d-red)', fontSize: 12.5 }}>
+              {error}
+            </p>
+          )}
         </div>
       </div>
 
