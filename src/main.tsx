@@ -1,8 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import './ui/design/styles.css';
 import './index.css';
-import './ui/workspace.css';
-import './ui/landing.css';
 import App from './App.tsx';
 import { runSimulation } from './state/simulation';
 

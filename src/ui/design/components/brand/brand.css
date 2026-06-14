@@ -1,0 +1,39 @@
+/* =========================================================================
+   HIVE components: BrandMark (v2). The hexagon "hive" cell now carries the
+   role-spectrum gradient (via SVG stroke) and a soft amber bloom; the HIVE
+   wordmark stays Geist Mono with wide tracking.
+   ========================================================================= */
+
+.hv-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--d-text);
+  cursor: default;
+}
+.hv-brand[role='button'],
+.hv-brand--link { cursor: pointer; }
+
+.hv-brand-hex {
+  display: inline-flex;
+  filter: drop-shadow(0 0 9px rgba(245, 185, 74, 0.5));
+  transition: filter var(--dur-base) ease, transform var(--dur-base) var(--ease-spring);
+}
+.hv-brand--link:hover .hv-brand-hex { transform: rotate(-8deg) scale(1.05); filter: drop-shadow(0 0 14px rgba(245, 185, 74, 0.7)); }
+
+.hv-brand-word {
+  font-family: var(--d-mono);
+  font-weight: var(--weight-semibold);
+  font-size: 15px;
+  letter-spacing: var(--tracking-wordmark);
+  padding-left: 4px;
+  color: var(--d-text);
+}
+
+.hv-brand--sm { gap: 8px; }
+.hv-brand--sm .hv-brand-word { font-size: 13px; letter-spacing: 0.36em; padding-left: 3px; }
+.hv-brand--lg { gap: 12px; }
+.hv-brand--lg .hv-brand-word { font-size: 20px; letter-spacing: 0.42em; }

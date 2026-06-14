@@ -1,0 +1,40 @@
+/* =========================================================================
+   HIVE components: instruments (v2). The cost meter fill now glows and shifts
+   amber -> red across the budget; its bar sits in a softly lit track. The step
+   counter stays a tabular mono readout.
+   ========================================================================= */
+
+/* ---- Cost meter -------------------------------------------------------- */
+.hv-meter { display: flex; flex-direction: column; gap: 5px; width: 172px; }
+.hv-meter-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-family: var(--d-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+.hv-meter-label { font-size: 9px; letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--d-faint); }
+.hv-meter-val { color: var(--d-text); font-variant-numeric: tabular-nums; }
+.hv-meter-val .sep { color: var(--d-ghost); margin: 0 2px; }
+.hv-meter-val .cap { color: var(--d-faint); }
+.hv-meter-track {
+  height: 5px; border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+.hv-meter-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--d-amber-deep), var(--d-amber-bright));
+  box-shadow: 0 0 12px -1px var(--d-amber);
+  transition: width 0.5s var(--ease-spring), background 0.4s ease, box-shadow 0.4s ease;
+}
+.hv-meter[data-state='near'] .hv-meter-fill { background: linear-gradient(90deg, #c98a2a, #ffce6e); }
+.hv-meter[data-state='over'] .hv-meter-fill { background: linear-gradient(90deg, #c12740, var(--d-red)); box-shadow: 0 0 14px -1px var(--d-red); }
+
+/* ---- Step counter ------------------------------------------------------ */
+.hv-steps { font-family: var(--d-mono); font-size: 11px; color: var(--d-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.hv-steps b { color: var(--d-text); font-weight: var(--weight-semibold); }
+.hv-steps .lbl { color: var(--d-faint); font-size: 9px; letter-spacing: var(--tracking-label); text-transform: uppercase; margin-left: 4px; }
