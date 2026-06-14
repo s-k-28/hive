@@ -1,4 +1,4 @@
-import type { Mission, SwarmEvent, SwarmEventRecord } from '../lib/types';
+import type { Mission, RepoRef, SwarmEvent, SwarmEventRecord } from '../lib/types';
 import { useSwarm } from './swarm';
 
 /**
@@ -38,13 +38,14 @@ function script(goal: string): [number, SwarmEvent][] {
     [3200, {
       type: 'plan_created',
       tasks: [
-        { id: T.research, title: 'Research the competitive landscape', dependsOn: [] },
-        { id: T.audience, title: 'Define the target audience', dependsOn: [] },
-        { id: T.channels, title: 'Pick launch channels', dependsOn: [T.audience] },
-        { id: T.copy, title: 'Draft announcement copy', dependsOn: [T.research, T.audience] },
-        { id: T.plan, title: 'Assemble the launch plan', dependsOn: [T.channels, T.copy] },
+        { id: T.research, title: 'Research the competitive landscape', dependsOn: [], specialist: { slug: 'product-trend-researcher', name: 'Trend Researcher', emoji: '🔭', division: 'product' } },
+        { id: T.audience, title: 'Define the target audience', dependsOn: [], specialist: { slug: 'design-ux-researcher', name: 'UX Researcher', emoji: '🔬', division: 'design' } },
+        { id: T.channels, title: 'Pick launch channels', dependsOn: [T.audience], specialist: { slug: 'marketing-growth-hacker', name: 'Growth Hacker', emoji: '🚀', division: 'marketing' } },
+        { id: T.copy, title: 'Draft announcement copy', dependsOn: [T.research, T.audience], specialist: { slug: 'marketing-content-creator', name: 'Content Creator', emoji: '✍️', division: 'marketing' } },
+        { id: T.plan, title: 'Assemble the launch plan', dependsOn: [T.channels, T.copy], specialist: { slug: 'product-manager', name: 'Product Manager', emoji: '🧭', division: 'product' } },
       ],
     }],
+    [3300, { type: 'agent_thought', agent: 'planner', taskId: null, text: 'Matched each task to a specialist from the agent library by semantic fit.' }],
     [3400, { type: 'budget_updated', spentCents: 4, budgetCents: SIM_BUDGET_CENTS, stepCount: 1, maxSteps: null }],
     [4200, { type: 'task_claimed', taskId: T.research, agent: 'worker-1' }],
     [4400, { type: 'task_claimed', taskId: T.audience, agent: 'worker-2' }],
@@ -126,18 +127,23 @@ export interface SimulationHandle {
   stop: () => void;
 }
 
-export function runSimulation(goal = 'Draft a launch plan for Hive'): SimulationHandle {
+export function runSimulation(
+  goal = 'Draft a launch plan for Hive',
+  repo: RepoRef | null = null,
+  guidance: string | null = null,
+): SimulationHandle {
   const mission: Mission = {
     id: 'sim-mission',
     goal,
     status: 'planning',
     artifactUrl: null,
     createdAt: new Date().toISOString(),
+    repo,
     budgetCents: SIM_BUDGET_CENTS,
     spentCents: 0,
     stepCount: 0,
     maxSteps: null,
-    guidance: null,
+    guidance,
   };
   useSwarm.getState().startMission(mission);
 

@@ -16,6 +16,7 @@ const MISSION: Mission = {
   status: 'planning',
   artifactUrl: null,
   createdAt: '1970-01-01T00:00:00.000Z',
+  repo: null,
   budgetCents: 100,
   spentCents: 0,
   stepCount: 0,
@@ -327,5 +328,49 @@ describe('pruneFx', () => {
     });
     pruneFx(2500);
     expect(useSwarm.getState().fx.recallThreads).toHaveLength(0);
+  });
+});
+
+describe('specialists', () => {
+  it('sets the specialist on tasks carried by plan_created', () => {
+    apply({
+      type: 'plan_created',
+      tasks: [
+        {
+          id: 'research',
+          title: 'Research',
+          dependsOn: [],
+          specialist: { slug: 'product-trend-researcher', name: 'Trend Researcher', emoji: '🔭', division: 'product' },
+        },
+        { id: 'copy', title: 'Copy', dependsOn: ['research'] },
+      ],
+    });
+    const { tasks } = useSwarm.getState();
+    expect(tasks['research'].specialist?.name).toBe('Trend Researcher');
+    // A task with no specialist in the payload stays null.
+    expect(tasks['copy'].specialist).toBeNull();
+  });
+
+  it('assigns a specialist live via specialist_assigned and logs it', () => {
+    apply(PLAN);
+    expect(useSwarm.getState().tasks['research'].specialist).toBeNull();
+    apply({
+      type: 'specialist_assigned',
+      taskId: 'research',
+      specialist: { slug: 'marketing-growth-hacker', name: 'Growth Hacker', emoji: '🚀', division: 'marketing' },
+    });
+    const s = useSwarm.getState();
+    expect(s.tasks['research'].specialist?.slug).toBe('marketing-growth-hacker');
+    expect(s.log.some((l) => l.text.includes('Growth Hacker'))).toBe(true);
+  });
+
+  it('ignores specialist_assigned for an unknown task without throwing', () => {
+    apply(PLAN);
+    apply({
+      type: 'specialist_assigned',
+      taskId: 'nope',
+      specialist: { slug: 'x', name: 'X', emoji: '', division: 'd' },
+    });
+    expect(useSwarm.getState().tasks['nope']).toBeUndefined();
   });
 });

@@ -193,6 +193,18 @@ export function TaskBoard() {
 
                     <span className="tb-card-title">{task.title}</span>
 
+                    {task.specialist ? (
+                      <span
+                        className="tb-card-spec"
+                        title={`${task.specialist.name} · ${task.specialist.division}`}
+                      >
+                        <span className="tb-card-spec-emoji" aria-hidden="true">
+                          {task.specialist.emoji || '🤖'}
+                        </span>
+                        <span className="tb-card-spec-name">{task.specialist.name}</span>
+                      </span>
+                    ) : null}
+
                     <span className="tb-card-foot">
                       {task.costCents > 0 ? (
                         <span className="tb-card-cost">${(task.costCents / 100).toFixed(2)}</span>

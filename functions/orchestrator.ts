@@ -222,6 +222,13 @@ async function recordCost(
 
 // --- local row types ------------------------------------------------------
 
+interface TaskSpecialist {
+  slug: string;
+  name: string;
+  emoji: string;
+  division: string;
+}
+
 interface TaskRow {
   mission_id: string;
   id: string;
@@ -229,6 +236,7 @@ interface TaskRow {
   description: string;
   status: string;
   depends_on: string[];
+  specialist: TaskSpecialist | null;
   assignee: string | null;
   result: string | null;
   feedback: string | null;
@@ -479,6 +487,214 @@ async function consumeInterventions(
 }
 
 
+// --- GitHub repo context (read-only) --------------------------------------
+//
+// When a mission is scoped to a repo, the planner pulls a bounded snapshot (file
+// tree + a few orientation files) once and caches it on the mission, so every
+// later worker reads it for free. Read-only: nothing here mutates the repo. The
+// token comes from the mission owner's `connections` row (admin read). All best
+// effort — any failure leaves the swarm running without repo context.
+
+interface RepoRefRow {
+  provider: string;
+  fullName: string;
+  ref: string;
+}
+
+const GH_API = "https://api.github.com";
+
+async function ghJson<T>(token: string, path: string): Promise<T | null> {
+  try {
+    const res = await fetch(`${GH_API}${path}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+const REPO_ORIENT = [
+  /^readme(\.md|\.txt)?$/i,
+  /^package\.json$/i,
+  /^(pyproject\.toml|requirements\.txt|go\.mod|cargo\.toml|gemfile)$/i,
+  /^(src\/)?(main|index|app|cli)\.(ts|tsx|js|jsx|py|go|rs|rb)$/i,
+];
+const REPO_SOURCE_EXT =
+  /\.(ts|tsx|js|jsx|py|go|rs|rb|java|kt|swift|c|cc|cpp|h|hpp|cs|php|scala|sql|sh|md|json|ya?ml|toml)$/i;
+
+// Fetch a bounded repo snapshot as a single prompt block. Mirrors
+// src/lib/github.ts buildRepoContext, inlined for the Deno runtime.
+async function fetchRepoContext(token: string, repo: RepoRefRow): Promise<string> {
+  const tree = await ghJson<{ tree: { path: string; type: string }[]; truncated: boolean }>(
+    token,
+    `/repos/${repo.fullName}/git/trees/${encodeURIComponent(repo.ref)}?recursive=1`,
+  );
+  if (!tree?.tree) return "";
+  const blobs = tree.tree.filter((e) => e.type === "blob");
+  const treePaths = blobs
+    .map((e) => e.path)
+    .filter((p) => REPO_SOURCE_EXT.test(p))
+    .sort((a, b) => a.length - b.length)
+    .slice(0, 400);
+
+  const picked: string[] = [];
+  for (const pat of REPO_ORIENT) {
+    for (const e of blobs) {
+      if (picked.length >= 5) break;
+      if (pat.test(e.path) && !picked.includes(e.path)) picked.push(e.path);
+    }
+  }
+
+  const files: string[] = [];
+  let bytes = 0;
+  const MAX = 12_000;
+  for (const path of picked) {
+    if (bytes >= MAX) break;
+    const data = await ghJson<{ content?: string; encoding?: string }>(
+      token,
+      `/repos/${repo.fullName}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(repo.ref)}`,
+    );
+    if (!data?.content || data.encoding !== "base64") continue;
+    let text = "";
+    try {
+      text = atob(data.content.replace(/\n/g, ""));
+    } catch {
+      continue;
+    }
+    const slice = text.slice(0, Math.max(0, MAX - bytes));
+    bytes += slice.length;
+    files.push(`--- ${path} ---\n${slice}`);
+  }
+
+  return (
+    `Repository: ${repo.fullName} @ ${repo.ref}\n\n` +
+    `File tree (partial${tree.truncated ? ", truncated" : ""}):\n${treePaths.join("\n")}\n\n` +
+    (files.length ? `Key files:\n${files.join("\n\n")}` : "")
+  );
+}
+
+// Resolve and cache the repo context for a mission. Returns "" when the mission
+// has no repo, the owner has no GitHub connection, or the fetch fails. Caches
+// the result on missions.repo_context so workers reuse it.
+async function ensureRepoContext(
+  db: ReturnType<typeof admin>,
+  missionId: string,
+): Promise<string> {
+  try {
+    const { data: rows } = await db.database
+      .from("missions")
+      .select("repo, repo_context, user_id")
+      .eq("id", missionId)
+      .limit(1);
+    const m = rows?.[0] as
+      | { repo: RepoRefRow | null; repo_context: string | null; user_id: string | null }
+      | undefined;
+    if (!m?.repo?.fullName) return "";
+    if (m.repo_context) return m.repo_context; // already cached
+    if (!m.user_id) return ""; // anon mission: no server-side token
+    const { data: conn } = await db.database
+      .from("connections")
+      .select("access_token")
+      .eq("user_id", m.user_id)
+      .eq("provider", "github")
+      .limit(1);
+    const token = (conn?.[0]?.access_token as string | undefined) ?? "";
+    if (!token) return "";
+    const ctx = await fetchRepoContext(token, m.repo);
+    if (ctx) {
+      await db.database.from("missions").update({ repo_context: ctx }).eq("id", missionId);
+    }
+    return ctx;
+  } catch (e) {
+    console.error("ensureRepoContext failed (continuing)", e);
+    return "";
+  }
+}
+
+// Read the cached repo context for a worker (no fetch; planner populated it).
+async function readRepoContext(
+  db: ReturnType<typeof admin>,
+  missionId: string,
+): Promise<string> {
+  try {
+    const { data } = await db.database
+      .from("missions")
+      .select("repo_context")
+      .eq("id", missionId)
+      .limit(1);
+    return (data?.[0]?.repo_context as string | null | undefined) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+// --- specialist selection (agent catalog) ---------------------------------
+//
+// Match each planned task to the best-fit expert from agents_catalog by semantic
+// similarity (the same pgvector pattern as memory recall). One embeddings call
+// for all task titles, then one match_agents RPC per task. Picks the closest
+// specialist not already used in this mission (falling back to the closest) so a
+// plan gets a varied bench rather than the same expert on every card. Persists
+// the choice as tasks.specialist jsonb and returns a slug->specialist map for
+// the plan_created payload. Strictly best effort: any failure leaves tasks
+// without a specialist and the worker falls back to the generic prompt.
+async function assignSpecialists(
+  db: ReturnType<typeof admin>,
+  ai: OpenAI,
+  missionId: string,
+  plan: PlanTask[],
+): Promise<Map<string, TaskSpecialist>> {
+  const out = new Map<string, TaskSpecialist>();
+  try {
+    const emb = await ai.embeddings.create({
+      model: MODELS.embed(),
+      input: plan.map((t) => t.title),
+    });
+    const vectors = emb.data ?? [];
+    const used = new Set<string>();
+    for (let i = 0; i < plan.length; i++) {
+      const vector = vectors[i]?.embedding;
+      if (!vector) continue;
+      const { data: matches } = await db.database.rpc("match_agents", {
+        query_embedding: vector,
+        match_count: 6,
+      });
+      const rows = (matches ?? []) as {
+        slug: string;
+        name: string;
+        division: string;
+        emoji: string;
+      }[];
+      if (rows.length === 0) continue;
+      const pick = rows.find((r) => !used.has(r.slug)) ?? rows[0];
+      used.add(pick.slug);
+      const specialist: TaskSpecialist = {
+        slug: pick.slug,
+        name: pick.name,
+        emoji: pick.emoji ?? "",
+        division: pick.division,
+      };
+      out.set(plan[i].id, specialist);
+      // Persist on the task so the worker can load the persona and the UI can
+      // render the chip on reopen.
+      await db.database
+        .from("tasks")
+        .update({ specialist })
+        .eq("mission_id", missionId)
+        .eq("id", plan[i].id);
+    }
+  } catch (e) {
+    console.error("specialist assignment failed (continuing generic)", e);
+  }
+  return out;
+}
+
 // --- planner --------------------------------------------------------------
 
 async function runPlanner(
@@ -506,11 +722,19 @@ async function runPlanner(
     .limit(1);
   const guidance = (guideRows?.[0]?.guidance as string | null | undefined) ?? null;
 
+  // Repo-scoped mission: pull a bounded snapshot once and cache it for workers.
+  const repoContext = await ensureRepoContext(db, missionId);
+
   const ai = openai();
   const system =
     "You are the Planner of an autonomous agent swarm. Decompose the user's " +
     "goal into 4 to 7 concrete, self-contained tasks that a small team can " +
-    "execute and then assemble into one deliverable. Return STRICT JSON only: " +
+    "execute and then assemble into one deliverable. " +
+    (repoContext
+      ? "The mission is scoped to a GitHub repository whose snapshot is provided; " +
+        "ground the tasks in the actual code, files, and structure shown. "
+      : "") +
+    "Return STRICT JSON only: " +
     'an array of objects {"id": slug, "title": string, "dependsOn": [slug,...]}. ' +
     "Rules: id is a short lowercase slug (letters, digits, hyphens), unique in " +
     "the array; dependsOn lists ids of tasks that must finish first and forms a " +
@@ -526,7 +750,8 @@ async function runPlanner(
         role: "user",
         content:
           `Goal: ${goal}` +
-          (guidance ? `\n\nOperator guidance to respect: ${guidance}` : ""),
+          (guidance ? `\n\nOperator guidance to respect: ${guidance}` : "") +
+          (repoContext ? `\n\n${repoContext}` : ""),
       },
     ],
     temperature: 0.4,
@@ -611,16 +836,26 @@ async function runPlanner(
   const { error: insErr } = await db.database.from("tasks").insert(rows);
   if (insErr) throw new Error(`failed to insert tasks: ${insErr.message}`);
 
+  // Match each task to a specialist from the agent catalog (best effort).
+  const specialists = await assignSpecialists(db, ai, missionId, plan);
+
   // One short reasoning line, then the plan. agent_thought for the planner uses
   // taskId: null (matches the SwarmEvent union). plan_created payload.tasks is
-  // the PlanTaskSummary array with dependsOn in camelCase.
+  // the PlanTaskSummary array with dependsOn (camelCase) and the chosen expert.
   await emitEvent(db, missionId, "agent_thought", {
     agent: "planner",
     taskId: null,
-    text: `Decomposed the goal into ${plan.length} tasks with dependencies; parallel work can begin.`,
+    text: specialists.size > 0
+      ? `Decomposed the goal into ${plan.length} tasks and matched ${specialists.size} to specialists from the agent library.`
+      : `Decomposed the goal into ${plan.length} tasks with dependencies; parallel work can begin.`,
   });
   await emitEvent(db, missionId, "plan_created", {
-    tasks: plan.map((t) => ({ id: t.id, title: t.title, dependsOn: t.dependsOn })),
+    tasks: plan.map((t) => ({
+      id: t.id,
+      title: t.title,
+      dependsOn: t.dependsOn,
+      specialist: specialists.get(t.id) ?? null,
+    })),
   });
   // mission.status is already 'running' from the claim above; the frontend also
   // moves to running on plan_created.
@@ -789,12 +1024,42 @@ async function runWorker(
   // browser. Best-effort; returns "" when disabled or on any failure.
   const webResearch = await maybeBrowse(db, missionId, agent, taskId, ai, goal, task);
 
-  const system =
-    "You are a Worker agent in an autonomous swarm. Complete exactly the one " +
-    "task assigned, producing a concise, concrete, useful result in clean " +
-    "markdown. Be specific and actionable; do not restate the prompt or pad. " +
-    "Aim for tight, high-signal output (a few short paragraphs or a focused " +
-    "list).";
+  // Repo-scoped mission: the planner cached a bounded snapshot; read it so the
+  // worker grounds its output in the actual codebase. Best effort.
+  const repoContext = await readRepoContext(db, missionId);
+  const repoNote = repoContext
+    ? `\n\nThis mission is scoped to a repository. Ground your work in it:\n${repoContext}`
+    : "";
+
+  // Specialist persona: if the planner assigned an expert from the catalog,
+  // load its persona and have the worker embody it. Best effort — a lookup miss
+  // just falls back to the generic worker voice.
+  let persona = "";
+  let specialistName = "";
+  if (task.specialist?.slug) {
+    specialistName = task.specialist.name ?? "";
+    try {
+      const { data: specRows } = await db.database
+        .from("agents_catalog")
+        .select("persona, name")
+        .eq("slug", task.specialist.slug)
+        .limit(1);
+      persona = String(specRows?.[0]?.persona ?? "").slice(0, 6000);
+    } catch (e) {
+      console.error("specialist persona load failed (continuing generic)", e);
+    }
+  }
+
+  const baseSystem =
+    "Complete exactly the one task assigned, producing a concise, concrete, " +
+    "useful result in clean markdown. Be specific and actionable; do not " +
+    "restate the prompt or pad. Aim for tight, high-signal output (a few short " +
+    "paragraphs or a focused list).";
+  const system = persona
+    ? `${persona}\n\n---\n\nYou are operating as the specialist above inside ` +
+      `HIVE's autonomous agent swarm, assigned one task. Bring that expertise ` +
+      `and voice to the work. ${baseSystem}`
+    : `You are a Worker agent in an autonomous swarm. ${baseSystem}`;
   const user =
     `Overall mission goal: ${goal}\n\n` +
     `Your task: ${task.title}\n` +
@@ -802,6 +1067,7 @@ async function runWorker(
     memoryContext +
     retryNote +
     guidanceNote +
+    repoNote +
     webResearch;
 
   const completion = await chat(ai, {
@@ -819,12 +1085,13 @@ async function runWorker(
   await recordCost(db, missionId, taskId, completion.model ?? MODELS.worker(), completion.usage);
 
   // One short reasoning line for the live log.
+  const asWho = specialistName ? `As ${specialistName}, ` : "";
   await emitEvent(db, missionId, "agent_thought", {
     agent,
     taskId,
     text: recalled.length
-      ? `Recalled ${recalled.length} prior insight(s); drafting ${task.title}.`
-      : `Working through ${task.title}.`,
+      ? `${asWho}recalled ${recalled.length} prior insight(s); drafting ${task.title}.`
+      : `${asWho}working through ${task.title}.`,
   });
 
   // Write the result and move the task to review.

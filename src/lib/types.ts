@@ -36,18 +36,42 @@ export type TaskStatus =
   | 'failed'     // exhausted retries
   | 'killed';    // a human killed it, or denied its risk gate; terminal
 
+/** A source repository a mission is scoped to. Read-only in this build: the
+ *  swarm reads the repo for context (it never commits). provider is 'github'
+ *  today; the shape leaves room for others. ref is a branch (or sha/tag). */
+export interface RepoRef {
+  provider: 'github';
+  fullName: string; // owner/name
+  ref: string;      // branch, tag, or sha
+}
+
 export interface Mission {
   id: string;
   goal: string;
   status: MissionStatus;
   artifactUrl: string | null;
   createdAt: string;
+  repo: RepoRef | null; // optional repo this mission works against (read-only)
   // Governance (control tower). Null budget/maxSteps mean no limit set.
   budgetCents: number | null;
   spentCents: number;
   stepCount: number;
   maxSteps: number | null;
   guidance: string | null; // injected constraints, appended as the run proceeds
+}
+
+/**
+ * The specialist expert assigned to a task, chosen from the agent catalog
+ * (table `agents_catalog`, browsable in the UI via src/lib/agentCatalog.ts).
+ * The planner selects one per task by semantic match; the worker that claims the
+ * task assumes this persona. Self-describing on the event so the UI needs no
+ * catalog lookup, though the browser catalog has the full metadata by slug.
+ */
+export interface TaskSpecialist {
+  slug: string;
+  name: string;
+  emoji: string;
+  division: string;
 }
 
 export interface Task {
@@ -57,6 +81,7 @@ export interface Task {
   description: string;
   status: TaskStatus;
   dependsOn: string[];   // task ids that must be accepted first
+  specialist: TaskSpecialist | null; // catalog expert assigned by the planner
   assignee: AgentName | null;
   result: string | null;
   feedback: string | null; // critic feedback when rejected
@@ -79,12 +104,14 @@ export interface PlanTaskSummary {
   id: string;
   title: string;
   dependsOn: string[];
+  specialist?: TaskSpecialist | null; // expert chosen for this task, if assigned
 }
 
 export type SwarmEvent =
   | { type: 'mission_started'; goal: string }
   | { type: 'agent_spawned'; agent: AgentName; role: AgentRole }
   | { type: 'plan_created'; tasks: PlanTaskSummary[] }
+  | { type: 'specialist_assigned'; taskId: string; specialist: TaskSpecialist }
   | { type: 'task_claimed'; taskId: string; agent: AgentName }
   | { type: 'agent_thought'; agent: AgentName; taskId: string | null; text: string }
   | { type: 'memory_stored'; agent: AgentName; memoryId: string; summary: string }
@@ -120,6 +147,7 @@ export interface SwarmEventRecord {
 //   mission_started   -> core ignites
 //   agent_spawned     -> orb fades in, takes orbit
 //   plan_created      -> task graph bloom-in animation (signature #1)
+//   specialist_assigned -> task node badges the assigned expert
 //   task_claimed      -> beam connects agent orb to task node
 //   agent_thought     -> thinking pulse + particle flow on beam (signature #2),
 //                        text streams into mission log

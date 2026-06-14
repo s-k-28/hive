@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { GitBranch, X } from 'lucide-react';
 import { useSwarm } from '../state/swarm';
 // Single launch entry point. In live mode (InsForge project configured) it
 // creates a mission and subscribes to its realtime channel; in dev mode it
 // replays the local simulation. Both drive the same applyEvent reducer.
 import { startMission } from '../lib/mission';
 import { MISSION_STATUS_META } from './agentMeta';
+import { RepoPicker } from './RepoPicker';
+import type { RepoRef } from '../lib/types';
 
 const EXAMPLE_GOALS = [
   'Draft a launch plan for a developer tool',
@@ -18,6 +21,8 @@ export function MissionConsole() {
   const [expanded, setExpanded] = useState(false);
   // Default budget for a new mission, in dollars. Empty means no cap.
   const [budget, setBudget] = useState('0.50');
+  const [repo, setRepo] = useState<RepoRef | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const launch = (value: string) => {
     const trimmed = value.trim();
@@ -25,7 +30,7 @@ export function MissionConsole() {
     const dollars = parseFloat(budget);
     const budgetCents =
       Number.isFinite(dollars) && dollars > 0 ? Math.round(dollars * 100) : null;
-    startMission(trimmed, { budgetCents }).catch((err) => {
+    startMission(trimmed, { budgetCents, repo }).catch((err) => {
       console.error('[hive] mission launch failed', err);
     });
     setExpanded(false);
@@ -42,6 +47,12 @@ export function MissionConsole() {
           <span className="mc-bar-goal" title={mission.goal}>
             {mission.goal}
           </span>
+          {mission.repo && (
+            <span className="mc-bar-repo" title={`${mission.repo.fullName} @ ${mission.repo.ref}`}>
+              <GitBranch size={12} aria-hidden="true" />
+              {mission.repo.fullName}
+            </span>
+          )}
           <span
             className="status-pill"
             data-status={mission.status}
@@ -117,6 +128,20 @@ export function MissionConsole() {
               onChange={(e) => setBudget(e.target.value)}
             />
           </label>
+          {repo ? (
+            <span className="mc-repo" title={`${repo.fullName} @ ${repo.ref}`}>
+              <GitBranch size={13} aria-hidden="true" />
+              <span className="mc-repo-name">{repo.fullName}</span>
+              <button type="button" className="mc-repo-x" onClick={() => setRepo(null)} aria-label="Remove repo">
+                <X size={12} />
+              </button>
+            </span>
+          ) : (
+            <button type="button" className="mc-repo-add" onClick={() => setPickerOpen(true)}>
+              <GitBranch size={13} aria-hidden="true" />
+              Connect repo
+            </button>
+          )}
           <button
             type="button"
             className="mc-launch"
@@ -127,6 +152,13 @@ export function MissionConsole() {
           </button>
         </div>
       </div>
+
+      {pickerOpen && (
+        <RepoPicker
+          onClose={() => setPickerOpen(false)}
+          onSelect={(r) => { setRepo(r); setPickerOpen(false); }}
+        />
+      )}
     </div>
   );
 }

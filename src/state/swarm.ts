@@ -183,6 +183,7 @@ export const useSwarm = create<SwarmState>((set, get) => ({
               description: '',
               status: 'pending',
               dependsOn: t.dependsOn,
+              specialist: t.specialist ?? null,
               assignee: null,
               result: null,
               feedback: null,
@@ -195,6 +196,17 @@ export const useSwarm = create<SwarmState>((set, get) => ({
           }
           setVisual('planner', 'complete');
           pushLog({ agent: 'planner', kind: 'status', text: `Plan ready: ${event.tasks.length} tasks` });
+          break;
+
+        case 'specialist_assigned':
+          if (tasks[event.taskId]) {
+            tasks[event.taskId] = { ...tasks[event.taskId], specialist: event.specialist };
+          }
+          pushLog({
+            agent: null,
+            kind: 'status',
+            text: `${event.specialist.emoji} ${event.specialist.name} assigned to ${tasks[event.taskId]?.title ?? event.taskId}`,
+          });
           break;
 
         case 'task_claimed':

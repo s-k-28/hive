@@ -1,4 +1,4 @@
-import type { Mission, SwarmEvent, SwarmEventRecord, Task } from './types';
+import type { Mission, RepoRef, SwarmEvent, SwarmEventRecord, Task } from './types';
 import { useSwarm } from '../state/swarm';
 import {
   runSimulation,
@@ -38,6 +38,7 @@ interface MissionRow {
   created_at?: string;
   budget_cents?: number | null;
   max_steps?: number | null;
+  repo?: RepoRef | null;
 }
 
 /**
@@ -94,6 +95,10 @@ export interface StartOptions {
   budgetCents?: number | null;
   /** Step cap. Null or undefined means no step gate. */
   maxSteps?: number | null;
+  /** A GitHub repo to scope the mission to (read-only context). */
+  repo?: RepoRef | null;
+  /** Initial guidance/brief (e.g. from the pre-launch clarifier) the swarm honors. */
+  guidance?: string | null;
 }
 
 export async function startMission(
@@ -104,11 +109,13 @@ export async function startMission(
   const client = getClient();
   const budgetCents = options.budgetCents ?? null;
   const maxSteps = options.maxSteps ?? null;
+  const repo = options.repo ?? null;
+  const guidance = options.guidance?.trim() || null;
 
   // Dev path: no project configured, replay the scripted mission locally.
   if (!client) {
     activeMissionId = null;
-    const handle = runSimulation(trimmed);
+    const handle = runSimulation(trimmed, repo, guidance);
     return { stop: handle.stop };
   }
 
@@ -129,6 +136,8 @@ export async function startMission(
     max_steps: maxSteps,
   };
   if (userId) insertRow.user_id = userId;
+  if (repo) insertRow.repo = repo;
+  if (guidance) insertRow.guidance = guidance;
 
   const response = await client.database
     .from('missions')
@@ -149,11 +158,12 @@ export async function startMission(
     status: 'planning',
     artifactUrl: null,
     createdAt: row.created_at ?? new Date().toISOString(),
+    repo,
     budgetCents,
     spentCents: 0,
     stepCount: 0,
     maxSteps,
-    guidance: null,
+    guidance,
   };
   useSwarm.getState().startMission(mission);
   activeMissionId = row.id;
@@ -367,7 +377,7 @@ export async function reopenMission(missionId: string): Promise<MissionHandle | 
 
   const { data: missionData, error: mErr } = await client.database
     .from('missions')
-    .select('id, goal, status, created_at, budget_cents, max_steps')
+    .select('id, goal, status, created_at, budget_cents, max_steps, repo')
     .eq('id', missionId)
     .limit(1);
   const row = (missionData as MissionRow[] | null)?.[0];
@@ -382,6 +392,7 @@ export async function reopenMission(missionId: string): Promise<MissionHandle | 
     status: 'planning',
     artifactUrl: null,
     createdAt: row.created_at ?? new Date().toISOString(),
+    repo: row.repo ?? null,
     budgetCents: row.budget_cents ?? null,
     spentCents: 0,
     stepCount: 0,
@@ -395,7 +406,7 @@ export async function reopenMission(missionId: string): Promise<MissionHandle | 
   // then replay the persisted event log in order to rebuild scene + log state.
   const { data: taskData } = await client.database
     .from('tasks')
-    .select('mission_id, id, title, description, status, depends_on, assignee, result, feedback, attempts, order_index, cost_cents, risk, risk_approved')
+    .select('mission_id, id, title, description, status, depends_on, specialist, assignee, result, feedback, attempts, order_index, cost_cents, risk, risk_approved')
     .eq('mission_id', missionId)
     .order('order_index', { ascending: true });
   const tasks = ((taskData ?? []) as Record<string, unknown>[]).map(
@@ -406,6 +417,7 @@ export async function reopenMission(missionId: string): Promise<MissionHandle | 
       description: String(t.description ?? ''),
       status: (t.status as Task['status']) ?? 'pending',
       dependsOn: (t.depends_on as string[]) ?? [],
+      specialist: (t.specialist as Task['specialist']) ?? null,
       assignee: (t.assignee as Task['assignee']) ?? null,
       result: (t.result as string | null) ?? null,
       feedback: (t.feedback as string | null) ?? null,

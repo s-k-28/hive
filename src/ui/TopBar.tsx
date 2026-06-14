@@ -1,4 +1,4 @@
-import { Hexagon, Play, Pause, User, Clock } from 'lucide-react';
+import { Hexagon, Play, Pause, User, Clock, Boxes, GitBranch } from 'lucide-react';
 import { useSwarm } from '../state/swarm';
 import { useCost } from '../state/selectors';
 import { isLiveBackend } from '../lib/insforge';
@@ -18,9 +18,10 @@ interface TopBarProps {
   onOpenPalette: () => void;
   onOpenAuth: () => void;
   onOpenHistory: () => void;
+  onOpenLibrary: () => void;
 }
 
-export function TopBar({ user, onOpenPalette, onOpenAuth, onOpenHistory }: TopBarProps) {
+export function TopBar({ user, onOpenPalette, onOpenAuth, onOpenHistory, onOpenLibrary }: TopBarProps) {
   const mission = useSwarm((s) => s.mission);
   const cost = useCost();
 
@@ -48,6 +49,12 @@ export function TopBar({ user, onOpenPalette, onOpenAuth, onOpenHistory }: TopBa
         {mission ? (
           <>
             <span className="ws-mission-goal" title={mission.goal}>{mission.goal}</span>
+            {mission.repo && (
+              <span className="ws-mission-repo" title={`${mission.repo.fullName} @ ${mission.repo.ref}`}>
+                <GitBranch size={12} aria-hidden="true" />
+                {mission.repo.fullName}
+              </span>
+            )}
             {meta && (
               <span className="ws-pill" style={{ ['--pill' as string]: meta.tone }}>
                 <span className="ws-pill-dot" aria-hidden="true" />
@@ -120,6 +127,10 @@ export function TopBar({ user, onOpenPalette, onOpenAuth, onOpenHistory }: TopBa
           </button>
         </>
       )}
+
+      <button type="button" className="ws-btn ws-btn--icon" onClick={onOpenLibrary} title="Agent library">
+        <Boxes size={15} />
+      </button>
 
       <button type="button" className="ws-kbd" onClick={onOpenPalette} title="Command palette">
         <kbd>&#8984;</kbd><kbd>K</kbd>

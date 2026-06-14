@@ -6,6 +6,7 @@ import { useSwarm } from '../state/swarm';
 import { useCost, useTasksSorted } from '../state/selectors';
 import { colorOf, labelOf } from './agentMeta';
 import { injectNote, pauseMission, resumeMission, raiseBudget } from '../lib/mission';
+import { agentBySlug } from '../lib/agentCatalog';
 import type { Task } from '../lib/types';
 
 /**
@@ -125,6 +126,8 @@ function FocusDetail() {
             )}
           </div>
 
+          {task.specialist && <SpecialistCard task={task} />}
+
           <Section title="Why it ran">
             {deps.length > 0 ? (
               <ul className="det-deps">
@@ -221,6 +224,26 @@ function FocusDetail() {
         </Section>
       </div>
     </div>
+  );
+}
+
+/** The specialist assigned to a task: identity from the event, deeper detail
+ *  (vibe, full description) looked up from the bundled catalog by slug. */
+function SpecialistCard({ task }: { task: Task }) {
+  const spec = task.specialist!;
+  const meta = agentBySlug(spec.slug);
+  return (
+    <Section title="Specialist on this task">
+      <div className="det-spec">
+        <span className="det-spec-emoji" aria-hidden="true">{spec.emoji || '🤖'}</span>
+        <div className="det-spec-body">
+          <div className="det-spec-name">{spec.name}</div>
+          <div className="det-spec-div">{spec.division}</div>
+          {meta?.vibe && <p className="det-spec-vibe">{meta.vibe}</p>}
+          {meta?.description && <p className="det-spec-desc">{meta.description}</p>}
+        </div>
+      </div>
+    </Section>
   );
 }
 

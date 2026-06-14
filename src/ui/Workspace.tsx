@@ -8,6 +8,7 @@ import { StatusStrip } from './StatusStrip';
 import { CommandPalette } from './CommandPalette';
 import { Auth } from './Auth';
 import { MissionHistory } from './MissionHistory';
+import { AgentLibrary } from './AgentLibrary';
 import { getCurrentUser, type AuthUser } from '../lib/mission';
 
 /**
@@ -19,6 +20,7 @@ export function Workspace() {
   const [palette, setPalette] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
@@ -46,6 +48,7 @@ export function Workspace() {
         onOpenPalette={() => setPalette(true)}
         onOpenAuth={openAuth}
         onOpenHistory={() => setHistoryOpen(true)}
+        onOpenLibrary={() => setLibraryOpen(true)}
       />
       <div className="ws-body">
         <Group orientation="horizontal" id="hive-deck" className="ws-pg">
@@ -69,6 +72,7 @@ export function Workspace() {
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
       {authOpen && <Auth user={user} onChange={setUser} onClose={() => setAuthOpen(false)} />}
       {historyOpen && <MissionHistory onClose={() => setHistoryOpen(false)} />}
+      {libraryOpen && <AgentLibrary onClose={() => setLibraryOpen(false)} />}
     </div>
   );
 }
