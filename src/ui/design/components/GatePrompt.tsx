@@ -22,7 +22,7 @@ function Shield() {
  * (magenta = risk, amber = budget/steps). Set `backdrop={false}` to render the
  * bare card without the blurred overlay.
  */
-export interface GatePromptProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface GatePromptProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
   tone?: string;
   title?: React.ReactNode;
   icon?: React.ReactNode;

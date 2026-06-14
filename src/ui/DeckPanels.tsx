@@ -131,6 +131,8 @@ export function Board({
       setEdges(next);
     });
     return () => cancelAnimationFrame(raf);
+    // Recompute connector geometry only when the plan's status signature changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig]);
 
   const maxCol = st.tasks.reduce((m, t) => Math.max(m, t.col), 0);

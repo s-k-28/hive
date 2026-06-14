@@ -161,6 +161,8 @@ export function HeroDeck() {
       setEdges(next);
     });
     return () => cancelAnimationFrame(raf);
+    // Recompute connector geometry only when the task status signature changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig]);
 
   const cols = [0, 1, 2].map((ci) => HD_TASKS.filter((t) => t.col === ci));

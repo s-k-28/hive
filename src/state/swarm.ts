@@ -283,6 +283,11 @@ export const useSwarm = create<SwarmState>((set, get) => ({
               stepCount: event.stepCount,
               maxSteps: event.maxSteps,
             };
+          // Stream per-task cost into the board + cost ledger live. Backward
+          // compatible: events without taskId/taskCents simply skip this.
+          if (event.taskId && event.taskCents != null && tasks[event.taskId]) {
+            tasks[event.taskId] = { ...tasks[event.taskId], costCents: event.taskCents };
+          }
           break;
 
         case 'gate_tripped':

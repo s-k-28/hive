@@ -5,7 +5,7 @@ import React from 'react';
  * optional amber hex glyph and a right-aligned count) over a scrolling body.
  * Use `bare` to drop the border/radius when the panel fills a resizable column.
  */
-export interface PanelProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface PanelProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
   title?: React.ReactNode;
   count?: React.ReactNode;
   hex?: boolean;
