@@ -94,6 +94,12 @@ export interface StartOptions {
   budgetCents?: number | null;
   /** Step cap. Null or undefined means no step gate. */
   maxSteps?: number | null;
+  /**
+   * Initial guidance the swarm respects from the first tick. Used by the
+   * conversational deck to thread prior turns into a new mission so the session
+   * carries context forward.
+   */
+  guidance?: string | null;
 }
 
 export async function startMission(
@@ -104,6 +110,7 @@ export async function startMission(
   const client = getClient();
   const budgetCents = options.budgetCents ?? null;
   const maxSteps = options.maxSteps ?? null;
+  const guidance = options.guidance?.trim() || null;
 
   // Dev path: no project configured, replay the scripted mission locally.
   if (!client) {
@@ -129,6 +136,7 @@ export async function startMission(
     max_steps: maxSteps,
   };
   if (userId) insertRow.user_id = userId;
+  if (guidance) insertRow.guidance = guidance;
 
   const response = await client.database
     .from('missions')
@@ -153,7 +161,7 @@ export async function startMission(
     spentCents: 0,
     stepCount: 0,
     maxSteps,
-    guidance: null,
+    guidance,
   };
   useSwarm.getState().startMission(mission);
   activeMissionId = row.id;

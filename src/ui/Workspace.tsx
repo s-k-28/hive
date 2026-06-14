@@ -1,47 +1,69 @@
-import { useState } from 'react';
-import type { ChangeEvent, KeyboardEvent } from 'react';
-import { Pause, Play } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Pause, Play, SquarePen } from 'lucide-react';
 import './design/deck.css';
+import './design/chat.css';
 import {
   AgentChip,
   BrandMark,
   Button,
   CostMeter,
-  Eyebrow,
-  Input,
   LiveIndicator,
   StatusPill,
   StepCounter,
 } from './design/components';
-import { MissionTree, Board, GateLayer, Inspector } from './DeckPanels';
+import { ChatThread } from './ChatThread';
+import { Board, GateLayer, Inspector } from './DeckPanels';
 import type { InspectorTab } from './DeckPanels';
 import { useDeckState, missionStatusMeta } from '../state/deckState';
 import type { DeckState } from '../state/deckState';
 import { useSwarm } from '../state/swarm';
+import { useConversation } from '../state/conversation';
 import { AGENT_ROSTER } from '../lib/types';
-import { startMission, pauseMission, resumeMission } from '../lib/mission';
+import { pauseMission, resumeMission } from '../lib/mission';
 import { isLiveBackend } from '../lib/insforge';
 
-const EXAMPLE_GOALS = [
-  'Draft a launch plan for a developer tool',
-  'Plan a go-to-market for an AI note app',
-  'Outline a technical blog post on agent swarms',
-];
-
 /**
- * The HIVE Control Deck (v2: cinematic command). The command bar over a
- * three-column workspace (mission tree, stage, inspector) over the live status
- * strip. Driven entirely by the live `useDeckState` projection of the InsForge
- * realtime store; every control writes a real intervention to the backend.
+ * The HIVE conversational control deck. A chat thread (you message tasks
+ * continuously) beside a live work view (the governed swarm executing the
+ * current task). The deck adapter drives both from the live InsForge store.
  */
 export function Workspace() {
-  const st = useDeckState();
+  const deck = useDeckState();
   const focusTask = useSwarm((s) => s.focusTask);
   const setFocusTask = useSwarm((s) => s.setFocusTask);
   const [tab, setTab] = useState<InspectorTab>('activity');
 
-  const meta = st ? missionStatusMeta(st.status) : null;
-  const paused = st?.status === 'paused';
+  // Capture each finished mission's artifact back into its chat turn, so the
+  // assistant "answers" with the delivered result and past turns keep it.
+  const missionId = useSwarm((s) => s.mission?.id ?? null);
+  const missionStatus = useSwarm((s) => s.mission?.status ?? null);
+  const artifactUrl = useSwarm((s) => s.artifact?.url ?? null);
+  const artifactName = useSwarm((s) => s.artifact?.name ?? null);
+  useEffect(() => {
+    if (!missionId) return;
+    const convo = useConversation.getState();
+    if (missionStatus === 'complete') {
+      if (artifactUrl) {
+        fetch(artifactUrl)
+          .then((r) => r.text())
+          .then((md) => convo.patchAssistant(missionId, { status: 'complete', result: md, artifactName, artifactUrl }))
+          .catch(() => convo.patchAssistant(missionId, { status: 'complete', artifactName, artifactUrl }));
+      } else {
+        convo.patchAssistant(missionId, { status: 'complete' });
+      }
+    } else if (missionStatus === 'failed') {
+      convo.patchAssistant(missionId, { status: 'failed' });
+    }
+  }, [missionId, missionStatus, artifactUrl, artifactName]);
+
+  const meta = deck ? missionStatusMeta(deck.status) : null;
+  const paused = deck?.status === 'paused';
+  const turns = useConversation((s) => s.turns);
+
+  const newChat = () => {
+    useConversation.getState().reset();
+    useSwarm.getState().reset();
+  };
 
   return (
     <div className="ws-app">
@@ -54,10 +76,10 @@ export function Workspace() {
         />
         <LiveIndicator mode={isLiveBackend ? 'live' : 'sim'} />
         <div className="ws-mission">
-          {st && meta ? (
+          {deck && meta ? (
             <>
-              <span className="ws-mission-goal" title={st.goal}>
-                {st.goal}
+              <span className="ws-mission-goal" title={deck.goal}>
+                {deck.goal}
               </span>
               <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
             </>
@@ -65,10 +87,10 @@ export function Workspace() {
             <span className="ws-mission-tag">The live control tower for AI agents</span>
           )}
         </div>
-        {st && !st.terminal && (
+        {deck && !deck.terminal && (
           <>
-            <CostMeter spentCents={st.spentCents} budgetCents={st.budgetCents} />
-            <StepCounter stepCount={st.stepCount} maxSteps={st.maxSteps} />
+            <CostMeter spentCents={deck.spentCents} budgetCents={deck.budgetCents} />
+            <StepCounter stepCount={deck.stepCount} maxSteps={deck.maxSteps} />
             <Button
               variant="secondary"
               size="sm"
@@ -79,9 +101,9 @@ export function Workspace() {
             </Button>
           </>
         )}
-        {st && st.terminal && (
-          <Button variant="secondary" size="sm" onClick={() => useSwarm.getState().reset()}>
-            New mission
+        {turns.length > 0 && (deck == null || deck.terminal) && (
+          <Button variant="secondary" size="sm" iconLeft={<SquarePen size={13} />} onClick={newChat}>
+            New chat
           </Button>
         )}
         <span className="ws-kbd">
@@ -91,29 +113,23 @@ export function Workspace() {
       </header>
 
       <div className="ws-body">
-        <div className="ws-col-tree">
-          <MissionTree st={st} focusTask={focusTask} setFocusTask={setFocusTask} />
+        <div className="ws-col-chat">
+          <ChatThread />
         </div>
         <div className="ws-handle" />
-        <div className="ws-col-stage">
-          <div className="ws-panel ws-panel--center">
-            <Stage st={st} focusTask={focusTask} setFocusTask={setFocusTask} />
-          </div>
-        </div>
-        <div className="ws-handle" />
-        <div className="ws-col-ins">
-          <Inspector st={st} tab={tab} setTab={setTab} focusTask={focusTask} setFocusTask={setFocusTask} />
+        <div className="ws-col-work">
+          <WorkView deck={deck} focusTask={focusTask} setFocusTask={setFocusTask} tab={tab} setTab={setTab} />
         </div>
       </div>
 
       <footer className="ws-status">
         <span className="ws-status-item">
-          <b>{st && meta ? meta.label : 'Idle'}</b>
+          <b>{deck && meta ? meta.label : 'Ready'}</b>
         </span>
         <span className="ws-status-sep" />
         <div className="ws-roster">
           {AGENT_ROSTER.map((a) => (
-            <AgentChip key={a.name} name={a.name} role={a.role} visual={st ? st.agents[a.name] : 'idle'} />
+            <AgentChip key={a.name} name={a.name} role={a.role} visual={deck ? deck.agents[a.name] : 'idle'} />
           ))}
         </div>
         <div className="ws-status-right">
@@ -122,7 +138,7 @@ export function Workspace() {
           </span>
           <span className="ws-status-sep" />
           <span className="ws-status-item">
-            {st ? `${st.tasks.filter((t) => t.status === 'accepted').length}/${st.tasks.length} accepted` : '0 tasks'}
+            {deck ? `${deck.tasks.filter((t) => t.status === 'accepted').length}/${deck.tasks.length} accepted` : 'idle'}
           </span>
         </div>
       </footer>
@@ -130,109 +146,41 @@ export function Workspace() {
   );
 }
 
-function Stage({
-  st,
+function WorkView({
+  deck,
   focusTask,
   setFocusTask,
+  tab,
+  setTab,
 }: {
-  st: DeckState | null;
+  deck: DeckState | null;
   focusTask: string | null;
   setFocusTask: (id: string | null) => void;
+  tab: InspectorTab;
+  setTab: (t: InspectorTab) => void;
 }) {
-  if (!st) return <LaunchBriefing />;
-  if (st.phase === 'planning') {
-    return (
-      <div className="ws-stage">
-        <div className="ws-planning">
-          <div className="ws-planning-ring" />
-          <div className="ws-planning-text">Planning the mission</div>
-        </div>
+  return (
+    <div className="work">
+      <div className="work-stage">
+        {!deck ? (
+          <div className="work-idle">
+            <div className="work-idle-ring" aria-hidden="true" />
+            <p className="work-idle-text">The swarm's live work appears here. Message a task to begin.</p>
+          </div>
+        ) : deck.phase === 'planning' ? (
+          <div className="ws-planning">
+            <div className="ws-planning-ring" />
+            <div className="ws-planning-text">Planning the task</div>
+          </div>
+        ) : (
+          <>
+            <Board st={deck} focusTask={focusTask} setFocusTask={setFocusTask} />
+            {deck.gate && <GateLayer st={deck} />}
+          </>
+        )}
       </div>
-    );
-  }
-  return (
-    <div className="ws-stage">
-      <Board st={st} focusTask={focusTask} setFocusTask={setFocusTask} />
-      {st.gate && <GateLayer st={st} />}
-    </div>
-  );
-}
-
-function LaunchBriefing() {
-  const [goal, setGoal] = useState('');
-  const [budget, setBudget] = useState('0.50');
-  const [error, setError] = useState<string | null>(null);
-
-  const launch = (value: string) => {
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    const dollars = parseFloat(budget);
-    const budgetCents = Number.isFinite(dollars) && dollars > 0 ? Math.round(dollars * 100) : null;
-    setError(null);
-    startMission(trimmed, { budgetCents }).catch((err) => {
-      console.error('[hive] mission launch failed', err);
-      setError(err instanceof Error ? err.message : 'Could not start the mission. Please try again.');
-    });
-  };
-
-  return (
-    <div className="lb">
-      <div className="lb-card">
-        <div className="lb-bar">
-          <i />
-          <i />
-          <i />
-          Mission briefing
-        </div>
-        <div className="lb-body">
-          <Eyebrow>New mission</Eyebrow>
-          <h1 className="lb-title">Give the swarm a goal.</h1>
-          <p className="lb-sub">
-            Delegate real work to a transparent agent team, then watch it plan, execute, review, and ship, with cost
-            gates and live steering the whole way.
-          </p>
-          <div className="lb-field">
-            <Input
-              multiline
-              rows={3}
-              placeholder="Research current Vercel pricing and summarize the tiers for developers..."
-              value={goal}
-              onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setGoal(e.currentTarget.value)}
-              onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') launch(goal);
-              }}
-            />
-          </div>
-          <div className="lb-chips">
-            {EXAMPLE_GOALS.map((ex) => (
-              <button key={ex} type="button" className="lb-chip" onClick={() => setGoal(ex)}>
-                {ex}
-              </button>
-            ))}
-          </div>
-          <div className="lb-actions">
-            <label className="lb-budget" title="Cost budget. The swarm pauses and asks you when it is reached.">
-              <span className="lb-budget-label">Budget</span>
-              <span>$</span>
-              <input
-                type="number"
-                min="0"
-                step="0.25"
-                value={budget}
-                onChange={(e) => setBudget(e.currentTarget.value)}
-                style={{ background: 'none', border: 'none', color: 'inherit', font: 'inherit', width: 46, outline: 'none' }}
-              />
-            </label>
-            <Button variant="primary" onClick={() => launch(goal)} disabled={!goal.trim()}>
-              Launch swarm
-            </Button>
-          </div>
-          {error && (
-            <p role="alert" style={{ marginTop: 12, color: 'var(--d-red)', fontSize: 12.5 }}>
-              {error}
-            </p>
-          )}
-        </div>
+      <div className="work-inspector">
+        <Inspector st={deck} tab={tab} setTab={setTab} focusTask={focusTask} setFocusTask={setFocusTask} />
       </div>
     </div>
   );
