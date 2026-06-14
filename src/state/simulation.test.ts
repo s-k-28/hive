@@ -122,6 +122,30 @@ describe('runSimulation', () => {
     expect(useSwarm.getState().mission?.status).toBe('complete');
   });
 
+  it('a repo-scoped mission plays the code-review run to a complete state', () => {
+    runSimulation('Review this codebase', {
+      provider: 'github',
+      fullName: 'octocat/hello-world',
+      ref: 'main',
+    });
+    vi.advanceTimersByTime(40_000);
+
+    const s = useSwarm.getState();
+    const tasks = Object.values(s.tasks) as Task[];
+
+    // The repo variant decomposes into the five code-review tasks, not the
+    // launch-plan ones, and ships a repo-flavored artifact.
+    expect(s.mission?.status).toBe('complete');
+    expect(s.mission?.repo?.fullName).toBe('octocat/hello-world');
+    expect(tasks).toHaveLength(5);
+    expect(tasks.every((t) => t.status === 'accepted')).toBe(true);
+    expect(s.tasks['task-map']).toBeDefined();
+    expect(s.tasks['task-report']).toBeDefined();
+    expect(s.artifact?.name).toBe('code-review.md');
+    // The clone-and-index thought references the connected repo by name.
+    expect(s.log.some((l) => l.text.includes('octocat/hello-world'))).toBe(true);
+  });
+
   it('denying the gated step leaves the held state and kills the task', () => {
     // Regression: deny must emit mission_resumed so the cockpit never stalls in
     // awaiting_input after the backend has moved on.

@@ -23,9 +23,24 @@ artifact, complete. Two findings changed the architecture from this runbook:
 Repo layout this runbook assumes:
 
 ```
-migrations/    20260612120001_core_schema.sql ... 120004_realtime.sql, 20260613002220_control_tower.sql
-functions/     orchestrator.ts, agent-run.ts
+migrations/    20260612120001_core_schema.sql ... 120004_realtime.sql, 20260613002220_control_tower.sql,
+               20260613120000_agent-catalog.sql, 20260614120000_github.sql
+functions/     orchestrator.ts   (single function; agent-run was merged in and deleted)
 vercel.json    SPA rewrites
+```
+
+The two newest migrations power the latest features and must be applied on
+redeploy:
+
+- `20260613120000_agent-catalog.sql` seeds `agents_catalog` (the specialist
+  personas the planner assigns and workers assume).
+- `20260614120000_github.sql` adds the `connections` table (owner-only RLS, holds
+  each user's read-only GitHub token) plus `missions.repo` and
+  `missions.repo_context`, so a mission can be scoped to a repo and the
+  orchestrator caches the fetched snapshot. Public repos work with no token;
+  private repos require a signed-in user with a stored connection.
+
+```
 ```
 
 The control tower migration (`20260613002220_control_tower.sql`) adds the
@@ -199,31 +214,34 @@ npx @insforge/cli secrets get OPENROUTER_API_KEY     # confirm presence (do not 
 
 ---
 
-## 4. Deploy the two edge functions
+## 4. Deploy the edge function
+
+InsForge blocks function-to-function calls (HTTP 508), so HIVE is ONE function:
+`orchestrator` runs every agent role inline. There is no `agent-run.ts` to
+deploy; `WORKER_TOKEN` and `FUNCTIONS_BASE_URL` are no longer read (harmless if
+left set).
 
 ```bash
 npx @insforge/cli functions deploy orchestrator --file functions/orchestrator.ts
-npx @insforge/cli functions deploy agent-run    --file functions/agent-run.ts
-npx @insforge/cli functions list                     # both must show status: active
+npx @insforge/cli functions list                     # orchestrator must show status: active
 ```
 
 Notes and UNVERIFIED items:
 
-- Slugs are `orchestrator` and `agent-run`. The orchestrator calls
-  `${FUNCTIONS_BASE_URL}/agent-run` and agent-run calls
-  `${FUNCTIONS_BASE_URL}/orchestrator`, so the deployed slugs must match exactly.
-- Both import `npm:@insforge/sdk`; agent-run also imports `npm:openai`. The
-  cheat sheet marks the `npm:` specifier UNVERIFIED on InsForge's Deno runtime.
+- The slug is `orchestrator`. The browser kicks it with `{ missionId }`; the cron
+  hits it body-less to sweep every non-terminal mission.
+- It imports `npm:@insforge/sdk` and `npm:openai`. The cheat sheet marks the
+  `npm:` specifier UNVERIFIED on InsForge's Deno runtime.
   Fallback: if a deploy or runtime import fails on the `npm:` specifier, change
-  the imports at the top of each file to esm.sh:
+  the imports at the top of the file to esm.sh:
   - `import { createAdminClient } from "https://esm.sh/@insforge/sdk";`
   - `import OpenAI from "https://esm.sh/openai";`
   (Pin versions if you hit drift, e.g. `https://esm.sh/@insforge/sdk@1.4.0`,
   `https://esm.sh/openai@4`.)
-- The function route is public (`security: []`). agent-run enforces
-  `x-worker-token`; the orchestrator does not require the token (it is safe to
-  call by the browser and cron), it only reads `{ missionId }`. This is
-  intentional: the orchestrator only schedules work derivable from table state.
+- The function route is public (`security: []`). The orchestrator requires no
+  token (it is safe to call by the browser and cron); it only schedules work
+  derivable from table state, and reads each repo token from the owner's
+  `connections` row server-side via the admin client.
 - Function timeout/memory limits are UNVERIFIED. Each tick and each agent step is
   designed to finish in seconds; the cron heartbeat re-derives remaining work, so
   a single dropped step self-heals on the next tick (except a step stuck mid-AI
@@ -232,11 +250,6 @@ Notes and UNVERIFIED items:
 Smoke-test the functions route host (confirms `FUNCTIONS_BASE_URL` is right):
 
 ```bash
-# Unauthorized agent-run call must be rejected (proves auth + correct host):
-curl -s -X POST "$FUNCTIONS_BASE_URL/agent-run" \
-  -H "Content-Type: application/json" -d '{"role":"planner","missionId":"x"}'
-# expect 401 {"ok":false,"error":"unauthorized"}
-
 # Orchestrator with a bogus mission returns 404 (proves it is reachable):
 curl -s -X POST "$FUNCTIONS_BASE_URL/orchestrator" \
   -H "Content-Type: application/json" -d '{"missionId":"00000000-0000-0000-0000-000000000000"}'

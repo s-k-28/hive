@@ -37,7 +37,7 @@ You still watch every agent reason in plain language, see which earlier findings
 | Primitive | Role in HIVE |
 | --- | --- |
 | Postgres | `missions` (with budget, spend, step count, guidance), `tasks` (a dependency DAG with cost and a risk gate), `events` (append only log), `memories`, `interventions` (the steering queue) |
-| Edge functions | `orchestrator` (a race-safe tick that drains interventions, enforces the gates, then assigns ready tasks) and `agent-run` (claim, reason, act, report, account for cost) |
+| Edge functions | `orchestrator` (a single race-safe tick that drains interventions, enforces the gates, pulls repo context, then claims ready tasks and runs every agent role inline, accounting for cost) |
 | AI gateway | All agent reasoning and all embeddings, through the OpenAI compatible project endpoint, with per-step token cost metered live |
 | pgvector | Shared swarm memory. Agents store what they learn, later agents recall it by meaning |
 | Realtime | A database trigger publishes every `events` row to `mission:{id}`. The live mission board, the cost meter, and the gate prompt all react live |
@@ -87,10 +87,10 @@ The orchestration is tick based. Nothing runs forever. On each tick the orchestr
 
 ## The swarm
 
-Six agents, four roles, all executed by the same `agent-run` edge function with different prompts and behaviors.
+Six agents, four roles, all executed inline by the same `orchestrator` edge function with different prompts and behaviors.
 
-- **Planner** (gold). Decomposes the goal into four to seven tasks with explicit dependencies.
-- **Workers** (cyan, three of them). Claim ready tasks, recall relevant memories from pgvector, reason through the AI gateway, write results, and store new memories.
+- **Planner** (gold). Decomposes the goal into four to seven tasks with explicit dependencies, and assigns each task a **specialist** drawn from a catalog of 700+ expert personas (a Security Auditor for the dependency task, a Code Reviewer for the hotspot task, and so on) by semantic fit.
+- **Workers** (cyan, three of them). Claim ready tasks, assume the assigned specialist persona, recall relevant memories from pgvector, reason through the AI gateway, write results, and store new memories.
 - **Critic** (magenta). Reviews completed work. Can bounce a task back with feedback, which the board shows by flipping that task card to its rejected treatment before a worker picks it back up.
 - **Assembler** (green). Composes the accepted task outputs into the final artifact and uploads it to Storage.
 
@@ -103,6 +103,25 @@ Three subsystems turn the swarm from a black box into something you can govern, 
 - **Causal inspector (the flight recorder).** Click any task card to see why it ran (dependencies and recalled memories), its rendered-markdown output, its cost, and the ordered chain of events that touched it. A live cost meter and step counter sit in the control bar, and the final artifact opens in-app to copy or download.
 
 The signature moment is simple: a gate trips, the swarm stops and asks, and you steer it forward, all in real time, all rendered live in the cockpit.
+
+## Point it at your codebase
+
+A mission can be scoped to a GitHub repository. Paste a public `owner/repo`
+(no token), or connect a read-only token to reach private repos and your own
+list. The orchestrator then pulls a bounded, prompt-sized snapshot of the repo,
+a compact file tree plus the key orientation files, and folds it into the
+planner and workers, so the swarm reasons over your real code. It is strictly
+read-only: HIVE never commits, pushes, or mutates the repo. Point it at a repo
+and the swarm becomes a code-review team: map the architecture, audit the
+dependencies, find the hotspots, propose ranked fixes, and ship a review report,
+under the same budget, gates, and live steering as any other mission.
+
+## The clarifier
+
+Before a mission launches, a short clarifier chat pins down intent: it asks a
+couple of sharp questions about scope and constraints, recommends the
+specialists it will assign, and folds your answers into the mission guidance the
+agents honor throughout. The swarm starts aligned instead of guessing.
 
 ## The mission view
 
@@ -161,12 +180,11 @@ hive/
   src/
     ui/           the live mission board plus the glass cockpit: console, control bar, gate prompt, inspector, log, roster, artifact, auth, history
     state/        zustand stores fed by realtime events, plus the local simulation
-    lib/          InsForge client, auth + steering helpers, and the swarm protocol shared with the functions
+    lib/          InsForge client, GitHub connector, auth + steering helpers, the agent catalog, and the swarm protocol shared with the functions
     scene/        a dormant react-three-fiber scene, not mounted by the app, kept for reference only
   functions/
-    orchestrator  the tick: drains interventions, enforces the gates, assigns ready tasks
-    agent-run     claim, reason via the AI gateway, report, store memory, account for cost
-  migrations/     SQL: tables, RLS, the realtime publish trigger, pgvector, the control tower schema
+    orchestrator  the single edge function: drains interventions, enforces the gates, pulls repo context, claims ready tasks, and runs every agent role inline (plan, reason via the AI gateway, review, assemble, account for cost)
+  migrations/     SQL: tables, RLS, the realtime publish trigger, pgvector, the control tower schema, the GitHub connections table
   docs/           research brief, InsForge cheat sheet, deploy guide
 ```
 

@@ -123,6 +123,129 @@ tower for AI agents.
 const SIM_ARTIFACT_URL =
   'data:text/markdown;charset=utf-8,' + encodeURIComponent(SIM_ARTIFACT_MARKDOWN);
 
+// ---------------------------------------------------------------------------
+// Repo-aware variant. When a mission is scoped to a GitHub repo, the offline
+// run plays a code-review mission over that repo instead of the generic launch
+// plan, so the connector is convincing in the public (no-backend) demo: the
+// swarm "clones" the repo, maps its architecture, audits its dependencies,
+// finds hotspots, proposes ranked fixes, and ships a review report. Same beats
+// as the default script (plan, parallel work, memory recall, one critic
+// bounce-back, the risk gate hold + approve, assemble, complete) so every
+// steering control still demos. Live runs do the real GitHub fetch in the
+// orchestrator; this is the offline mirror.
+// ---------------------------------------------------------------------------
+
+const R = {
+  map: 'task-map',
+  security: 'task-security',
+  hotspots: 'task-hotspots',
+  fixes: 'task-fixes',
+  report: 'task-report',
+};
+
+function repoScript(goal: string, repo: RepoRef): [number, SwarmEvent][] {
+  const name = repo.fullName;
+  const ref = repo.ref;
+  return [
+    [0, { type: 'mission_started', goal }],
+    [400, { type: 'agent_spawned', agent: 'planner', role: 'planner' }],
+    [700, { type: 'agent_spawned', agent: 'worker-1', role: 'worker' }],
+    [850, { type: 'agent_spawned', agent: 'worker-2', role: 'worker' }],
+    [1000, { type: 'agent_spawned', agent: 'worker-3', role: 'worker' }],
+    [1150, { type: 'agent_spawned', agent: 'critic', role: 'critic' }],
+    [1300, { type: 'agent_spawned', agent: 'assembler', role: 'assembler' }],
+    [1700, { type: 'agent_thought', agent: 'planner', taskId: null, text: `Cloning ${name}@${ref} (read-only) and indexing the file tree.` }],
+    [2300, { type: 'agent_thought', agent: 'planner', taskId: null, text: 'Indexed the repo: reading README, manifests, and the hottest source paths.' }],
+    [3200, {
+      type: 'plan_created',
+      tasks: [
+        { id: R.map, title: 'Map the codebase architecture', dependsOn: [], specialist: { slug: 'engineering-codebase-onboarding-engineer', name: 'Codebase Onboarding Engineer', emoji: '🧭', division: 'engineering' } },
+        { id: R.security, title: 'Audit dependencies and security', dependsOn: [], specialist: { slug: 'security-appsec-engineer', name: 'Application Security Engineer', emoji: '🔐', division: 'security' } },
+        { id: R.hotspots, title: 'Find the riskiest hotspots', dependsOn: [R.map], specialist: { slug: 'engineering-code-reviewer', name: 'Code Reviewer', emoji: '👁️', division: 'engineering' } },
+        { id: R.fixes, title: 'Propose the highest-impact fixes', dependsOn: [R.map, R.security], specialist: { slug: 'engineering-senior-developer', name: 'Senior Developer', emoji: '💎', division: 'engineering' } },
+        { id: R.report, title: 'Write the review report', dependsOn: [R.hotspots, R.fixes], specialist: { slug: 'engineering-technical-writer', name: 'Technical Writer', emoji: '📚', division: 'engineering' } },
+      ],
+    }],
+    [3300, { type: 'agent_thought', agent: 'planner', taskId: null, text: 'Matched each task to a specialist from the agent library by semantic fit.' }],
+    [3400, { type: 'budget_updated', spentCents: 4, budgetCents: SIM_BUDGET_CENTS, stepCount: 1, maxSteps: null }],
+    [4200, { type: 'task_claimed', taskId: R.map, agent: 'worker-1' }],
+    [4400, { type: 'task_claimed', taskId: R.security, agent: 'worker-2' }],
+    [5200, { type: 'agent_thought', agent: 'worker-1', taskId: R.map, text: `Tracing entry points and module boundaries across ${name}.` }],
+    [5900, { type: 'agent_thought', agent: 'worker-2', taskId: R.security, text: 'Scanning dependencies for known CVEs and risky version pins.' }],
+    [7000, { type: 'memory_stored', agent: 'worker-1', memoryId: 'm1', summary: 'Architecture: one orchestrator drives a tick-based agent loop.' }],
+    [8200, { type: 'task_completed', taskId: R.map, agent: 'worker-1', summary: 'Architecture mapped; clear module seams, one hot path.' }],
+    [8400, { type: 'budget_updated', spentCents: 13, budgetCents: SIM_BUDGET_CENTS, stepCount: 2, maxSteps: null }],
+    [8900, { type: 'memory_stored', agent: 'worker-2', memoryId: 'm2', summary: 'Two transitive deps are behind on security patches.' }],
+    [9600, { type: 'task_completed', taskId: R.security, agent: 'worker-2', summary: 'Dependency audit done; two upgrades flagged.' }],
+    [9800, { type: 'budget_updated', spentCents: 21, budgetCents: SIM_BUDGET_CENTS, stepCount: 3, maxSteps: null }],
+    [10400, { type: 'task_reviewed', taskId: R.map, verdict: 'accepted', feedback: '' }],
+    [11000, { type: 'task_reviewed', taskId: R.security, verdict: 'accepted', feedback: '' }],
+    [11600, { type: 'task_claimed', taskId: R.hotspots, agent: 'worker-3' }],
+    [11800, { type: 'task_claimed', taskId: R.fixes, agent: 'worker-1' }],
+    [12600, { type: 'memory_recalled', agent: 'worker-1', taskId: R.fixes, memoryIds: ['m1', 'm2'] }],
+    [13400, { type: 'agent_thought', agent: 'worker-1', taskId: R.fixes, text: 'Recalled the architecture map and the dep audit; ranking fixes by blast radius.' }],
+    [14600, { type: 'task_completed', taskId: R.hotspots, agent: 'worker-3', summary: 'Hotspots: the auth path and an unbounded retry loop.' }],
+    [14800, { type: 'budget_updated', spentCents: 29, budgetCents: SIM_BUDGET_CENTS, stepCount: 4, maxSteps: null }],
+    [15400, { type: 'task_completed', taskId: R.fixes, agent: 'worker-1', summary: 'Drafted five fixes, ranked by impact and effort.' }],
+    [15600, { type: 'budget_updated', spentCents: 36, budgetCents: SIM_BUDGET_CENTS, stepCount: 5, maxSteps: null }],
+    [16200, { type: 'task_reviewed', taskId: R.hotspots, verdict: 'accepted', feedback: '' }],
+    [17000, { type: 'task_reviewed', taskId: R.fixes, verdict: 'rejected', feedback: 'Too broad. Tie each fix to a specific file and line.' }],
+    [17800, { type: 'task_claimed', taskId: R.fixes, agent: 'worker-1' }],
+    [18600, { type: 'agent_thought', agent: 'worker-1', taskId: R.fixes, text: 'Rewriting: each fix now cites the exact file and the risk it removes.' }],
+    [20000, { type: 'task_completed', taskId: R.fixes, agent: 'worker-1', summary: 'Fixes rewritten with file-level citations.' }],
+    [20200, { type: 'budget_updated', spentCents: 42, budgetCents: SIM_BUDGET_CENTS, stepCount: 6, maxSteps: null }],
+    [20800, { type: 'task_reviewed', taskId: R.fixes, verdict: 'accepted', feedback: '' }],
+    // The synthesis (the published report) is the high-impact step. The risk gate
+    // holds the swarm and asks the human before it ships.
+    [21400, { type: 'gate_tripped', kind: 'risk', taskId: R.report }],
+    [23400, { type: 'intervention_applied', kind: 'approve', taskId: R.report, note: 'Report approved by operator' }],
+    [23600, { type: 'mission_resumed' }],
+    [24000, { type: 'task_claimed', taskId: R.report, agent: 'assembler' }],
+    [24800, { type: 'agent_thought', agent: 'assembler', taskId: R.report, text: 'Composing the findings into a prioritized review report.' }],
+    [26000, { type: 'task_completed', taskId: R.report, agent: 'assembler', summary: 'Review report assembled.' }],
+    [26200, { type: 'budget_updated', spentCents: 47, budgetCents: SIM_BUDGET_CENTS, stepCount: 7, maxSteps: null }],
+    [26600, { type: 'task_reviewed', taskId: R.report, verdict: 'accepted', feedback: '' }],
+    [27400, { type: 'artifact_created', url: repoArtifactUrl(repo), name: 'code-review.md' }],
+    [28200, { type: 'mission_completed' }],
+  ];
+}
+
+function repoArtifactUrl(repo: RepoRef): string {
+  const md = `# Code review: ${repo.fullName}
+
+_Reviewed at \`${repo.ref}\`, read-only. HIVE never commits to your repo._
+
+## Overview
+A focused review of ${repo.fullName} by a swarm of specialist agents: the
+architecture was mapped, dependencies audited, hotspots found, and fixes ranked
+by impact, all under a cost budget with a human approval gate before publishing.
+
+## Architecture
+One orchestrator drives a tick-based agent loop with clear module seams. The
+structure is sound; risk concentrates in a single hot path.
+
+## Dependency & security audit
+Two transitive dependencies are behind on security patches. Neither is
+exploitable today, but both should be bumped before the next release.
+
+## Highest-impact fixes (ranked)
+1. **Bound the retry loop** — the unbounded retry path can spin on a persistent
+   failure. Add an attempt cap and backoff.
+2. **Harden the auth path** — the hottest module by change frequency; add tests
+   before refactoring.
+3. **Bump the two flagged dependencies** — low effort, removes known CVEs.
+4. **Extract the orchestrator's gate checks** — pure functions, easy to unit test.
+5. **Add a stale-task reaper** — recover work dropped mid-flight.
+
+## How this was produced
+Five tasks, five specialists, run in parallel with dependency ordering. One fix
+draft was bounced back by the critic for being too broad and rewritten with
+file-level citations. Every step was metered; the final report shipped only
+after an operator approved the risk gate.
+`;
+  return 'data:text/markdown;charset=utf-8,' + encodeURIComponent(md);
+}
+
 export interface SimulationHandle {
   stop: () => void;
 }
@@ -147,8 +270,12 @@ export function runSimulation(
   };
   useSwarm.getState().startMission(mission);
 
+  // Repo-scoped missions play the code-review script over the connected repo;
+  // everything else plays the default launch-plan run.
+  const timeline = repo ? repoScript(goal, repo) : script(goal);
+
   const timers: ReturnType<typeof setTimeout>[] = [];
-  for (const [i, [delay, event]] of script(goal).entries()) {
+  for (const [i, [delay, event]] of timeline.entries()) {
     timers.push(
       setTimeout(() => {
         // Allocate the seq at fire time as lastSeq + 1 rather than a fixed index,

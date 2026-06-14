@@ -34,12 +34,63 @@ export function RepoPicker({ onSelect, onClose }: RepoPickerProps) {
             <X size={14} />
           </button>
         </div>
+        <QuickAttach onSelect={onSelect} />
+        <div className="rp-or"><span>or connect your account</span></div>
         {connected ? (
           <RepoList login={login!} onSelect={onSelect} onDisconnect={() => { disconnectGithub(); setLogin(null); }} />
         ) : (
           <Connect onConnected={(u) => setLogin(u)} />
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Frictionless path: attach any public repo by pasting `owner/repo` (or a full
+ * GitHub URL, optionally `…@branch`). No token required, so the demo never hangs
+ * on the auth dance. Offline this just scopes the mission; live, the orchestrator
+ * reads the public repo (a connected token unlocks private repos + higher limits).
+ */
+function QuickAttach({ onSelect }: { onSelect: (repo: RepoRef) => void }) {
+  const [value, setValue] = useState('');
+
+  const parse = (raw: string): RepoRef | null => {
+    let s = raw.trim();
+    if (!s) return null;
+    s = s.replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/\/$/, '');
+    let ref = 'main';
+    const at = s.lastIndexOf('@');
+    if (at > 0) {
+      ref = s.slice(at + 1).trim() || 'main';
+      s = s.slice(0, at);
+    }
+    const m = s.match(/^([\w.-]+)\/([\w.-]+)$/);
+    if (!m) return null;
+    return { provider: 'github', fullName: `${m[1]}/${m[2]}`, ref };
+  };
+
+  const parsed = parse(value);
+
+  return (
+    <div className="rp-quick">
+      <label className="rp-quick-label" htmlFor="rp-quick-input">Paste a public repo</label>
+      <div className="rp-quick-row">
+        <input
+          id="rp-quick-input"
+          className="rp-input"
+          type="text"
+          placeholder="owner/repo  ·  github.com/owner/repo  ·  owner/repo@branch"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && parsed) onSelect(parsed); }}
+          autoFocus
+        />
+        <button type="button" className="mc-launch" disabled={!parsed} onClick={() => parsed && onSelect(parsed)}>
+          Attach
+        </button>
+      </div>
+      <p className="rp-quick-hint">No token needed for public repos. Try <code>facebook/react</code> or <code>vercel/next.js</code>.</p>
     </div>
   );
 }
