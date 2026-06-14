@@ -1,4 +1,4 @@
-import { useShallow } from 'zustand/react/shallow';
+import { useMemo } from 'react';
 import { useSwarm } from './swarm';
 import { AGENT_ROSTER } from '../lib/types';
 import type { AgentVisualState, MissionStatus, TaskStatus } from '../lib/types';
@@ -8,6 +8,10 @@ import type { AgentVisualState, MissionStatus, TaskStatus } from '../lib/types';
  * events) into the flat `DeckState` shape the HIVE v2 design panels render. This
  * is the single seam between the proven backend and the new cinematic frontend:
  * the design components stay presentational, the store stays the source of truth.
+ *
+ * It subscribes to the raw store slices and derives with useMemo, so the snapshot
+ * keeps a stable reference between unrelated renders (deriving a fresh object
+ * graph inside a useShallow selector would make useSyncExternalStore loop).
  */
 
 export interface DeckTask {
@@ -129,71 +133,75 @@ function computeColumns(tasks: { id: string; dependsOn: string[] }[]): Map<strin
 
 /**
  * The live deck state, or null when no mission is active (idle launch screen).
- * Reactive: re-derives on every realtime event the store applies.
+ * Reactive: re-derives on every realtime event the store applies, and only then.
  */
 export function useDeckState(): DeckState | null {
-  return useSwarm(
-    useShallow((s): DeckState | null => {
-      const m = s.mission;
-      if (!m) return null;
+  const mission = useSwarm((s) => s.mission);
+  const tasks = useSwarm((s) => s.tasks);
+  const agents = useSwarm((s) => s.agents);
+  const log = useSwarm((s) => s.log);
+  const gate = useSwarm((s) => s.gate);
+  const artifact = useSwarm((s) => s.artifact);
 
-      const taskList = Object.values(s.tasks).sort((a, b) => a.orderIndex - b.orderIndex);
-      const colOf = computeColumns(taskList);
-      const taskSum = taskList.reduce((acc, t) => acc + (t.costCents || 0), 0);
-      const spentCents = Math.max(m.spentCents, taskSum);
+  return useMemo<DeckState | null>(() => {
+    if (!mission) return null;
 
-      const phase: DeckState['phase'] =
-        m.status === 'complete' || m.status === 'failed'
-          ? 'done'
-          : m.status === 'planning' || taskList.length === 0
-            ? 'planning'
-            : 'running';
+    const taskList = Object.values(tasks).sort((a, b) => a.orderIndex - b.orderIndex);
+    const colOf = computeColumns(taskList);
+    const taskSum = taskList.reduce((acc, t) => acc + (t.costCents || 0), 0);
+    const spentCents = Math.max(mission.spentCents, taskSum);
 
-      const tasks: DeckTask[] = taskList.map((t) => ({
-        id: t.id,
-        title: t.title,
-        col: colOf.get(t.id) ?? 0,
-        deps: t.dependsOn,
-        assignee: t.assignee,
-        status: t.status,
-        costCents: t.costCents,
-        risk: t.risk,
-        riskApproved: t.riskApproved,
-        attempts: t.attempts,
-      }));
+    const phase: DeckState['phase'] =
+      mission.status === 'complete' || mission.status === 'failed'
+        ? 'done'
+        : mission.status === 'planning' || taskList.length === 0
+          ? 'planning'
+          : 'running';
 
-      // Backend log is oldest-first; the feed renders newest-first.
-      const log: DeckLogLine[] = s.log
-        .map((l): DeckLogLine => {
-          const role = l.agent ? (ROLE_OF[l.agent] ?? 'swarm') : 'swarm';
-          return {
-            seq: l.seq,
-            agent: l.agent ?? 'swarm',
-            text: l.text,
-            kind: l.kind,
-            color: ROLE_COLOR[role] ?? 'var(--d-faint)',
-          };
-        })
-        .reverse();
+    const deckTasks: DeckTask[] = taskList.map((t) => ({
+      id: t.id,
+      title: t.title,
+      col: colOf.get(t.id) ?? 0,
+      deps: t.dependsOn,
+      assignee: t.assignee,
+      status: t.status,
+      costCents: t.costCents,
+      risk: t.risk,
+      riskApproved: t.riskApproved,
+      attempts: t.attempts,
+    }));
 
-      const agents: Record<string, AgentVisualState> = {};
-      for (const a of AGENT_ROSTER) agents[a.name] = s.agents[a.name]?.visual ?? 'idle';
+    // Backend log is oldest-first; the feed renders newest-first.
+    const deckLog: DeckLogLine[] = log
+      .map((l): DeckLogLine => {
+        const role = l.agent ? (ROLE_OF[l.agent] ?? 'swarm') : 'swarm';
+        return {
+          seq: l.seq,
+          agent: l.agent ?? 'swarm',
+          text: l.text,
+          kind: l.kind,
+          color: ROLE_COLOR[role] ?? 'var(--d-faint)',
+        };
+      })
+      .reverse();
 
-      return {
-        phase,
-        goal: m.goal,
-        status: m.status,
-        budgetCents: m.budgetCents,
-        spentCents,
-        stepCount: m.stepCount,
-        maxSteps: m.maxSteps,
-        tasks,
-        gate: s.gate ? { kind: s.gate.kind, taskId: s.gate.taskId } : null,
-        artifact: s.artifact ? { name: s.artifact.name, url: s.artifact.url } : null,
-        agents,
-        log,
-        terminal: m.status === 'complete' || m.status === 'failed',
-      };
-    }),
-  );
+    const deckAgents: Record<string, AgentVisualState> = {};
+    for (const a of AGENT_ROSTER) deckAgents[a.name] = agents[a.name]?.visual ?? 'idle';
+
+    return {
+      phase,
+      goal: mission.goal,
+      status: mission.status,
+      budgetCents: mission.budgetCents,
+      spentCents,
+      stepCount: mission.stepCount,
+      maxSteps: mission.maxSteps,
+      tasks: deckTasks,
+      gate: gate ? { kind: gate.kind, taskId: gate.taskId } : null,
+      artifact: artifact ? { name: artifact.name, url: artifact.url } : null,
+      agents: deckAgents,
+      log: deckLog,
+      terminal: mission.status === 'complete' || mission.status === 'failed',
+    };
+  }, [mission, tasks, agents, log, gate, artifact]);
 }
