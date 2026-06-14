@@ -1,0 +1,69 @@
+/* =========================================================================
+   HIVE components: surfaces (v2). Panels gain depth: an inner top-light, a
+   layered gradient fill, and a glowing header rule. Inputs glow amber on focus.
+   ========================================================================= */
+
+/* ---- Panel ------------------------------------------------------------- */
+.hv-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 120px),
+    var(--d-panel);
+  border: 1px solid var(--d-line);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.hv-panel--bare { border: none; border-radius: 0; box-shadow: none; background: var(--d-panel); }
+.hv-panel-head {
+  flex: none;
+  height: var(--panel-head);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  border-bottom: 1px solid var(--d-line);
+  font-family: var(--d-mono);
+  font-size: 10px;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--d-faint);
+  user-select: none;
+}
+.hv-panel-hex { color: var(--d-amber); opacity: 0.85; display: inline-flex; filter: drop-shadow(0 0 5px rgba(245,185,74,0.5)); }
+.hv-panel-count { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--d-ghost); }
+.hv-panel-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+
+/* ---- Input well -------------------------------------------------------- */
+.hv-field { display: flex; flex-direction: column; gap: 7px; }
+.hv-field-label {
+  font-family: var(--d-mono);
+  font-size: 9px;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--d-faint);
+}
+.hv-input {
+  width: 100%;
+  padding: 11px 13px;
+  background: var(--d-bg);
+  border: 1px solid var(--d-line-2);
+  border-radius: var(--radius-md);
+  color: var(--d-text);
+  font-family: var(--d-sans);
+  font-size: 13.5px;
+  line-height: 1.5;
+  outline: none;
+  transition: border-color var(--dur-base) ease, box-shadow var(--dur-base) ease;
+}
+.hv-input::placeholder { color: var(--d-ghost); }
+.hv-input:focus {
+  border-color: color-mix(in srgb, var(--d-amber) 60%, transparent);
+  box-shadow: 0 0 0 3px rgba(245, 185, 74, 0.13), var(--glow-amber);
+}
+textarea.hv-input { resize: none; min-height: 66px; }
+.hv-input--mono { font-family: var(--d-mono); font-size: 13.5px; }

@@ -43,3 +43,6 @@ docs/qa/
 
 # Local environment secrets
 .env*.local
+
+# Design system raw mirror (working copy; the shipped design lives in src/ui/design)
+/design-src/

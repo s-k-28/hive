@@ -1,0 +1,86 @@
+/* =========================================================================
+   HIVE components: Button (v2, luminous). The primary CTA carries the amber
+   fill with a spectrum-lit underglow and a hover lift + bloom. Secondary and
+   ghost gain glowing edges on hover. A `spectrum` variant wears the full role
+   gradient for the single most cinematic action.
+   ========================================================================= */
+
+.hv-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: var(--h-cta-sm);
+  padding: 0 17px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  font-family: var(--d-sans);
+  font-size: 13.5px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  cursor: pointer;
+  isolation: isolate;
+  transition: transform var(--dur-fast) var(--ease-spring), box-shadow var(--dur-base) ease,
+    filter var(--dur-base) ease, color var(--dur-base) ease,
+    border-color var(--dur-base) ease, background var(--dur-base) ease;
+}
+.hv-btn:active { transform: translateY(1px) scale(0.99); }
+.hv-btn:disabled { cursor: not-allowed; opacity: 0.45; filter: grayscale(0.3); }
+.hv-btn svg { display: block; flex: none; }
+
+/* primary: warm-amber fill with a soft spectrum underglow. */
+.hv-btn--primary {
+  background: linear-gradient(180deg, var(--d-amber-bright), var(--d-amber));
+  color: var(--d-amber-ink);
+  box-shadow: var(--shadow-cta);
+}
+.hv-btn--primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-2px);
+  box-shadow: 0 18px 46px -12px rgba(245, 185, 74, 0.9);
+}
+
+/* spectrum: the full role gradient, the one cinematic action. */
+.hv-btn--spectrum {
+  color: #06070a;
+  background: var(--grad-spectrum);
+  background-size: 200% 100%;
+  animation: d-spectrum var(--loop-spectrum) linear infinite;
+  box-shadow: 0 14px 40px -14px rgba(227, 79, 208, 0.6);
+}
+.hv-btn--spectrum:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.06); }
+
+/* amber: a tinted, glowing outline for in-deck amber actions. */
+.hv-btn--amber {
+  color: var(--d-amber);
+  border-color: color-mix(in srgb, var(--d-amber) 44%, transparent);
+  background: color-mix(in srgb, var(--d-amber) 10%, transparent);
+}
+.hv-btn--amber:hover:not(:disabled) {
+  color: var(--d-amber-bright);
+  background: color-mix(in srgb, var(--d-amber) 16%, transparent);
+  box-shadow: var(--glow-amber);
+}
+
+/* secondary: the quiet instrument button; edge lights on hover. */
+.hv-btn--secondary {
+  color: var(--d-dim);
+  border-color: var(--d-line-2);
+  background: rgba(255, 255, 255, 0.025);
+}
+.hv-btn--secondary:hover:not(:disabled) {
+  color: var(--d-text);
+  background: var(--surface-hover);
+  border-color: color-mix(in srgb, var(--d-amber) 30%, var(--d-line-2));
+}
+
+/* ghost: text + hairline only. */
+.hv-btn--ghost { color: var(--d-dim); border-color: var(--d-line-2); background: transparent; }
+.hv-btn--ghost:hover:not(:disabled) { color: var(--d-text); border-color: var(--d-line-2); }
+
+/* sizes */
+.hv-btn--sm { height: var(--h-control); padding: 0 12px; font-size: 12px; border-radius: var(--radius-md); gap: 6px; }
+.hv-btn--lg { height: var(--h-cta-lg); padding: 0 30px; font-size: 16px; border-radius: var(--radius-xl); }
+.hv-btn--block { width: 100%; }

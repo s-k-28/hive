@@ -1,0 +1,15 @@
+/* =========================================================================
+   HIVE webfonts (v2). A characterful pairing, never Inter or Arial:
+
+     Space Grotesk  - the display + UI face. A tight modern grotesque with real
+                      character (the distinctive g, a, single-storey feel) that
+                      carries big cinematic headlines and the editorial chrome.
+     Geist Mono     - all data, labels, telemetry, eyebrows, and the wordmark:
+                      tabular numbers, wide-tracked uppercase.
+
+   Both are free and open-source, served from Google Fonts. To self-host, drop
+   woff2 binaries beside this file and swap the @import for local @font-face
+   rules keeping the same family names.
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');

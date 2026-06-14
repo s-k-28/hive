@@ -1,0 +1,117 @@
+/* =========================================================================
+   HIVE motion (v2). The core of the system. GPU-friendly transform + opacity
+   only, 150-300ms for UI, longer ambient loops for the living surfaces. Easing
+   is ease-out or a gentle spring. Everything is gated by prefers-reduced-motion
+   in base.css: loops and parallax drop, states remain.
+
+   Animation index (keyframes below):
+     d-rise-in     staggered page-load reveal (nav, headline, deck)
+     d-reveal-up   scroll fade-and-slide-up (IntersectionObserver adds .in)
+     d-verb        kinetic headline verb (blur up, stays lit)
+     d-card-in     task card bloom into the graph
+     d-flow        flowing DAG edge dash
+     d-sheen       running-card diagonal sheen sweep
+     d-spin        running-task spinner
+     d-pulse       breathing live-status dot ring
+     d-gate        pulsing risk-gate hold
+     d-drift-a/b/c slow hero gradient light-field drift (multi-anchor)
+     d-spectrum    spectrum sweep across CTA / underline
+     d-breathe     idle glowing-node breathe
+   ========================================================================= */
+
+:root {
+  /* ---- Durations (UI) ------------------------------------------------- */
+  --dur-fast: 120ms;     /* @kind other */
+  --dur-base: 180ms;     /* @kind other */
+  --dur-mid: 250ms;      /* @kind other */
+  --dur-slow: 350ms;     /* @kind other */
+  --dur-card-in: 520ms;  /* @kind other */
+
+  /* ---- Ambient loop periods ------------------------------------------ */
+  --loop-pulse: 2.4s;    /* @kind other */
+  --loop-sheen: 2s;      /* @kind other */
+  --loop-gate: 1.5s;     /* @kind other */
+  --loop-spin: 0.8s;     /* @kind other */
+  --loop-flow: 0.9s;     /* @kind other */
+  --loop-breathe: 3.6s;  /* @kind other */
+  --loop-drift: 26s;     /* @kind other */
+  --loop-spectrum: 6s;   /* @kind other */
+
+  /* ---- Easing -------------------------------------------------------- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);       /* @kind other */
+  --ease-spring: cubic-bezier(0.22, 0.85, 0.3, 1);  /* @kind other */
+  --ease-linear: linear;                            /* @kind other */
+}
+
+/* ---- Page-load + scroll reveals -------------------------------------- */
+@keyframes d-rise-in {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes d-reveal-up {
+  from { opacity: 0; transform: translateY(26px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---- Kinetic headline verb: blur up, stays lit ----------------------- */
+@keyframes d-verb {
+  from { opacity: 0; transform: translateY(0.32em); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+/* ---- Task card bloom -------------------------------------------------- */
+@keyframes d-card-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.95); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---- Flowing DAG edge ------------------------------------------------- */
+@keyframes d-flow { to { stroke-dashoffset: -24; } }
+
+/* ---- Running-card sheen ----------------------------------------------- */
+@keyframes d-sheen {
+  0% { background-position: 130% 0; }
+  100% { background-position: -130% 0; }
+}
+
+/* ---- Running spinner -------------------------------------------------- */
+@keyframes d-spin { to { transform: rotate(360deg); } }
+
+/* ---- Breathing live dot ----------------------------------------------- */
+@keyframes d-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(132, 227, 106, 0.5); }
+  70% { box-shadow: 0 0 0 7px rgba(132, 227, 106, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(132, 227, 106, 0); }
+}
+
+/* ---- Pulsing risk gate ------------------------------------------------ */
+@keyframes d-gate {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(227, 79, 208, 0.4), 0 0 22px -6px rgba(227, 79, 208, 0.5); }
+  50% { box-shadow: 0 0 0 1px rgba(227, 79, 208, 0.7), 0 0 50px -2px rgba(227, 79, 208, 0.85); }
+}
+
+/* ---- Hero gradient light-field drift (three anchors, different phase) -- */
+@keyframes d-drift-a {
+  0% { transform: translate3d(-8%, -6%, 0) scale(1.1); }
+  100% { transform: translate3d(10%, 8%, 0) scale(1.25); }
+}
+@keyframes d-drift-b {
+  0% { transform: translate3d(8%, 4%, 0) scale(1.2); }
+  100% { transform: translate3d(-10%, -8%, 0) scale(1.05); }
+}
+@keyframes d-drift-c {
+  0% { transform: translate3d(-4%, 8%, 0) scale(1.05); }
+  100% { transform: translate3d(8%, -6%, 0) scale(1.2); }
+}
+
+/* ---- Spectrum sweep (animates background-position of a spectrum fill) -- */
+@keyframes d-spectrum {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* ---- Idle glowing-node breathe ---------------------------------------- */
+@keyframes d-breathe {
+  0%, 100% { opacity: 0.78; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1.04); }
+}

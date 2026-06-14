@@ -1,0 +1,71 @@
+/* =========================================================================
+   HIVE components: indicators (v2). The status pill glows by tone; the live
+   indicator's dot breathes inside a glowing ring; the eyebrow can wear the
+   spectrum as a gradient-text fill.
+   ========================================================================= */
+
+/* ---- Status pill ------------------------------------------------------- */
+.hv-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--h-pill);
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  font-family: var(--d-mono);
+  font-size: 10px;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--pill, var(--d-amber));
+  background: color-mix(in srgb, var(--pill, var(--d-amber)) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pill, var(--d-amber)) 36%, transparent);
+  box-shadow: 0 0 16px -6px var(--pill, var(--d-amber));
+}
+.hv-pill-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 9px currentColor; flex: none; }
+
+/* ---- Live indicator (breathing dot) ------------------------------------ */
+.hv-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: var(--h-live);
+  padding: 0 12px 0 9px;
+  border: 1px solid var(--d-line-2);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.02);
+  font-family: var(--d-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--d-dim);
+  white-space: nowrap;
+}
+.hv-live-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--d-grn);
+  box-shadow: 0 0 0 0 rgba(132, 227, 106, 0.6);
+  animation: d-pulse var(--loop-pulse) ease-out infinite;
+  flex: none;
+}
+.hv-live[data-mode='sim'] .hv-live-dot { background: var(--d-amber); animation-name: d-pulse; box-shadow: 0 0 0 0 rgba(245, 185, 74, 0.6); }
+
+/* ---- Eyebrow ----------------------------------------------------------- */
+.hv-eyebrow {
+  font-family: var(--d-mono);
+  font-size: var(--text-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--d-amber);
+}
+.hv-eyebrow--muted { color: var(--d-faint); }
+.hv-eyebrow--tight { font-size: 10px; letter-spacing: 0.18em; }
+.hv-eyebrow--spectrum {
+  background: var(--grad-spectrum);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: d-spectrum calc(var(--loop-spectrum) * 1.4) linear infinite;
+}

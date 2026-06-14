@@ -1,0 +1,64 @@
+/* =========================================================================
+   HIVE typography (v2). A distinctive, characterful pairing:
+
+     Space Grotesk  - display + UI. Tight, modern, expressive grotesque for big
+                      cinematic headlines and all chrome.
+     Geist Mono     - data, labels, telemetry, eyebrows, the wordmark. Tabular
+                      numbers; uppercase eyebrows with wide tracking.
+
+   Headlines run big and tight; the scale climbs to a 76px cinematic hero.
+   Numeric readouts always use tabular figures.
+   ========================================================================= */
+
+:root {
+  /* ---- Families ------------------------------------------------------- */
+  --d-sans: 'Space Grotesk', system-ui, sans-serif;        /* @kind font */
+  --d-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace; /* @kind font */
+  --font-display: var(--d-sans);  /* @kind font */
+  --font-ui: var(--d-sans);       /* @kind font */
+  --font-mono: var(--d-mono);     /* @kind font */
+
+  /* ---- Weights -------------------------------------------------------- */
+  --weight-regular: 400;   /* @kind other */
+  --weight-medium: 500;    /* @kind other */
+  --weight-semibold: 600;  /* @kind other */
+  --weight-bold: 700;      /* @kind other */
+
+  /* ---- Display + heading sizes (clamped, cinematic) ------------------- */
+  --text-hero: clamp(40px, 7vw, 76px);     /* landing H1 */
+  --text-display: clamp(32px, 5vw, 56px);  /* big closers */
+  --text-h2: clamp(26px, 3.8vw, 42px);
+  --text-h3: 28px;                          /* card / panel titles */
+  --text-title: 19px;
+  --text-lead: clamp(17px, 2vw, 23px);
+
+  /* ---- Body + UI sizes ----------------------------------------------- */
+  --text-body: 15px;
+  --text-ui: 13px;
+  --text-ui-sm: 12px;
+  --text-caption: 11px;
+
+  /* ---- Mono readout sizes -------------------------------------------- */
+  --text-data: 13px;
+  --text-data-sm: 11px;
+  --text-eyebrow: 11px;
+  --text-label: 10px;
+  --text-micro: 9px;
+
+  /* ---- Line heights -------------------------------------------------- */
+  --leading-tight: 1.0;     /* hero display @kind other */
+  --leading-snug: 1.1;      /* headings @kind other */
+  --leading-normal: 1.5;    /* body @kind other */
+  --leading-relaxed: 1.62;  /* long-form artifact text @kind other */
+
+  /* ---- Letter-spacing ------------------------------------------------ */
+  --tracking-display: -0.03em;  /* tight on large display @kind other */
+  --tracking-tight: -0.015em;   /* @kind other */
+  --tracking-normal: 0;         /* @kind other */
+  --tracking-eyebrow: 0.22em;   /* uppercase mono eyebrow @kind other */
+  --tracking-label: 0.16em;     /* instrument labels @kind other */
+  --tracking-wordmark: 0.44em;  /* HIVE wordmark @kind other */
+}
+
+/* Numeric readouts: tabular figures so columns of data stay aligned. */
+.d-tnum { font-variant-numeric: tabular-nums; }

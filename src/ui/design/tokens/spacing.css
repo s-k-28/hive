@@ -1,0 +1,52 @@
+/* =========================================================================
+   HIVE spacing, radii, and layout rails. A 4px base grid. Panels use a
+   33px head, a 52px command bar, a 34px status strip: the fixed chrome of
+   the control deck. Radii run small (6-7px controls) to medium (14-16px
+   panels and cards); pills are fully round.
+   ========================================================================= */
+
+:root {
+  /* ---- Space scale (4px base) ---------------------------------------- */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 14px;
+  --space-5: 16px;
+  --space-6: 18px;
+  --space-7: 22px;
+  --space-8: 24px;
+  --space-10: 32px;
+  --space-12: 40px;
+  --space-16: 56px;
+  --space-20: 72px;
+
+  /* ---- Radii --------------------------------------------------------- */
+  --radius-xs: 5px;     /* tiny chips / attempts badge */
+  --radius-sm: 7px;     /* buttons, kbd */
+  --radius-md: 9px;     /* inputs, gate buttons */
+  --radius-lg: 11px;    /* CTAs */
+  --radius-xl: 16px;    /* cards, panels, modals */
+  --radius-2xl: 20px;   /* hero / briefing cards */
+  --radius-pill: 999px; /* status pills, live chips */
+
+  /* ---- Control heights (instrument chrome) --------------------------- */
+  --h-control: 28px;    /* deck buttons / kbd */
+  --h-pill: 22px;       /* status pills */
+  --h-live: 24px;       /* live indicator chip */
+  --h-cta: 44px;        /* marketing primary CTA */
+  --h-cta-sm: 36px;
+  --h-cta-lg: 52px;
+
+  /* ---- Fixed deck chrome --------------------------------------------- */
+  --bar-top: 52px;      /* command bar */
+  --bar-status: 34px;   /* status strip */
+  --panel-head: 33px;   /* panel header row */
+  --handle: 1px;        /* resize handle hairline */
+
+  /* ---- Content rails ------------------------------------------------- */
+  --rail-page: 1240px;  /* marketing section max-width */
+  --rail-hero: 1340px;  /* hero max-width */
+  --gutter: clamp(20px, 5vw, 64px); /* @kind spacing */
+  --rule: 1px;          /* editorial vertical ruler width */
+}
