@@ -5,6 +5,7 @@ import { Button, GatePrompt, Input, StatusPill, TaskCard } from './design/compon
 import { ROLE_COLOR, STATUS_COLOR } from '../state/deckState';
 import type { DeckState, DeckTask } from '../state/deckState';
 import { AGENT_ROSTER } from '../lib/types';
+import { agentBySlug } from '../lib/agentCatalog';
 import {
   approveGate,
   denyGate,
@@ -168,6 +169,7 @@ export function Board({
                   gated={st.gate?.taskId === t.id}
                   focused={focusTask === t.id}
                   attempts={t.attempts}
+                  specialist={t.specialist}
                   onClick={() => setFocusTask(t.id)}
                 />
               </div>
@@ -378,6 +380,33 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
+/** The specialist assigned to a task: identity from the event, deeper detail
+ *  (vibe, description) looked up from the bundled catalog by slug. */
+function SpecialistBlock({ specialist }: { specialist: NonNullable<DeckTask['specialist']> }) {
+  const meta = agentBySlug(specialist.slug);
+  return (
+    <section style={{ marginTop: 16 }}>
+      <h4
+        style={{
+          fontFamily: 'var(--d-mono)', fontSize: 9.5, letterSpacing: '0.16em',
+          textTransform: 'uppercase', color: 'var(--d-faint)', marginBottom: 8,
+        }}
+      >
+        Specialist on this task
+      </h4>
+      <div className="det-spec">
+        <span className="det-spec-emoji" aria-hidden="true">{specialist.emoji || '🤖'}</span>
+        <div className="det-spec-body">
+          <div className="det-spec-name">{specialist.name}</div>
+          <div className="det-spec-div">{specialist.division}</div>
+          {meta?.vibe && <p className="det-spec-vibe">{meta.vibe}</p>}
+          {meta?.description && <p className="det-spec-desc">{meta.description}</p>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function TaskDetail({ st, task, onClose }: { st: DeckState; task: DeckTask; onClose: () => void }) {
   const deps = task.deps.map((id) => st.tasks.find((t) => t.id === id)).filter(Boolean) as DeckTask[];
   const tone =
@@ -424,6 +453,7 @@ function TaskDetail({ st, task, onClose }: { st: DeckState; task: DeckTask; onCl
           {task.attempts > 0 && <Fact label="Tries">{task.attempts + 1}x</Fact>}
           {task.risk && <Fact label="Gate">{task.riskApproved ? 'Approved' : 'High-impact'}</Fact>}
         </div>
+        {task.specialist && <SpecialistBlock specialist={task.specialist} />}
         <section style={{ marginTop: 16 }}>
           <h4
             style={{

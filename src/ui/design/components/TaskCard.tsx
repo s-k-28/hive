@@ -1,4 +1,5 @@
 import React from 'react';
+import type { TaskSpecialist } from '../../../lib/types';
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Pending',
@@ -26,6 +27,7 @@ export interface TaskCardProps extends React.ButtonHTMLAttributes<HTMLButtonElem
   gated?: boolean;
   attempts?: number;
   focused?: boolean;
+  specialist?: TaskSpecialist | null;
 }
 
 export function TaskCard({
@@ -37,6 +39,7 @@ export function TaskCard({
   gated = false,
   attempts = 0,
   focused = false,
+  specialist = null,
   className = '',
   ...rest
 }: TaskCardProps) {
@@ -63,6 +66,13 @@ export function TaskCard({
       </span>
 
       <span className="hv-task-title">{title}</span>
+
+      {specialist ? (
+        <span className="hv-task-spec" title={`${specialist.name} · ${specialist.division}`}>
+          <span className="hv-task-spec-emoji" aria-hidden="true">{specialist.emoji || '🤖'}</span>
+          <span className="hv-task-spec-name">{specialist.name}</span>
+        </span>
+      ) : null}
 
       <span className="hv-task-foot">
         <span className="hv-task-cost" data-zero={!costCents || undefined}>

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
-import { Pause, Play } from 'lucide-react';
+import { Pause, Play, Boxes, GitBranch, X } from 'lucide-react';
 import './design/deck.css';
+import './design/integrations.css';
 import {
   AgentChip,
   BrandMark,
@@ -15,10 +16,14 @@ import {
 } from './design/components';
 import { MissionTree, Board, GateLayer, Inspector } from './DeckPanels';
 import type { InspectorTab } from './DeckPanels';
+import { AgentLibrary } from './AgentLibrary';
+import { RepoPicker } from './RepoPicker';
+import { ClarifyChat } from './ClarifyChat';
 import { useDeckState, missionStatusMeta } from '../state/deckState';
 import type { DeckState } from '../state/deckState';
 import { useSwarm } from '../state/swarm';
 import { AGENT_ROSTER } from '../lib/types';
+import type { RepoRef } from '../lib/types';
 import { startMission, pauseMission, resumeMission } from '../lib/mission';
 import { isLiveBackend } from '../lib/insforge';
 
@@ -39,6 +44,7 @@ export function Workspace() {
   const focusTask = useSwarm((s) => s.focusTask);
   const setFocusTask = useSwarm((s) => s.setFocusTask);
   const [tab, setTab] = useState<InspectorTab>('activity');
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
   const meta = st ? missionStatusMeta(st.status) : null;
   const paused = st?.status === 'paused';
@@ -59,6 +65,12 @@ export function Workspace() {
               <span className="ws-mission-goal" title={st.goal}>
                 {st.goal}
               </span>
+              {st.repo && (
+                <span className="ws-mission-repo" title={`${st.repo.fullName} @ ${st.repo.ref}`}>
+                  <GitBranch size={12} aria-hidden="true" />
+                  {st.repo.fullName}
+                </span>
+              )}
               <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
             </>
           ) : (
@@ -84,6 +96,15 @@ export function Workspace() {
             New mission
           </Button>
         )}
+        <Button
+          variant="secondary"
+          size="sm"
+          iconLeft={<Boxes size={14} />}
+          onClick={() => setLibraryOpen(true)}
+          title="Agent library"
+        >
+          Agents
+        </Button>
         <span className="ws-kbd">
           <kbd>&#8984;</kbd>
           <kbd>K</kbd>
@@ -126,6 +147,8 @@ export function Workspace() {
           </span>
         </div>
       </footer>
+
+      {libraryOpen && <AgentLibrary onClose={() => setLibraryOpen(false)} />}
     </div>
   );
 }
@@ -158,17 +181,36 @@ function Stage({
   );
 }
 
+const REPO_EXAMPLE_GOALS = [
+  'Review this codebase and propose the 5 highest-impact improvements',
+  'Write a clear README from what this repo actually does',
+  'Audit the architecture and flag the riskiest areas',
+];
+
 function LaunchBriefing() {
   const [goal, setGoal] = useState('');
   const [budget, setBudget] = useState('0.50');
+  const [repo, setRepo] = useState<RepoRef | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [clarifyOpen, setClarifyOpen] = useState(false);
 
-  const launch = (value: string) => {
-    const trimmed = value.trim();
-    if (!trimmed) return;
+  // Open the clarifier first; the swarm launches only after the operator answers
+  // (or skips), so the mission starts aligned and with the chosen specialists.
+  const beginLaunch = () => {
+    if (goal.trim().length === 0) return;
+    setClarifyOpen(true);
+  };
+
+  const launchWithBrief = (brief: string) => {
+    setClarifyOpen(false);
     const dollars = parseFloat(budget);
     const budgetCents = Number.isFinite(dollars) && dollars > 0 ? Math.round(dollars * 100) : null;
-    startMission(trimmed, { budgetCents }).catch((err) => console.error('[hive] mission launch failed', err));
+    startMission(goal.trim(), { budgetCents, repo, guidance: brief }).catch((err) =>
+      console.error('[hive] mission launch failed', err),
+    );
   };
+
+  const examples = repo ? REPO_EXAMPLE_GOALS : EXAMPLE_GOALS;
 
   return (
     <div className="lb">
@@ -194,12 +236,12 @@ function LaunchBriefing() {
               value={goal}
               onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setGoal(e.currentTarget.value)}
               onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') launch(goal);
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') beginLaunch();
               }}
             />
           </div>
           <div className="lb-chips">
-            {EXAMPLE_GOALS.map((ex) => (
+            {examples.map((ex) => (
               <button key={ex} type="button" className="lb-chip" onClick={() => setGoal(ex)}>
                 {ex}
               </button>
@@ -218,12 +260,32 @@ function LaunchBriefing() {
                 style={{ background: 'none', border: 'none', color: 'inherit', font: 'inherit', width: 46, outline: 'none' }}
               />
             </label>
-            <Button variant="primary" onClick={() => launch(goal)} disabled={!goal.trim()}>
+            {repo ? (
+              <span className="lb-repo" title={`${repo.fullName} @ ${repo.ref}`}>
+                <GitBranch size={13} aria-hidden="true" />
+                <span className="lb-repo-name">{repo.fullName}</span>
+                <button type="button" className="lb-repo-x" onClick={() => setRepo(null)} aria-label="Remove repo">
+                  <X size={12} />
+                </button>
+              </span>
+            ) : (
+              <Button variant="secondary" iconLeft={<GitBranch size={13} />} onClick={() => setPickerOpen(true)}>
+                Connect repo
+              </Button>
+            )}
+            <Button variant="primary" onClick={beginLaunch} disabled={!goal.trim()}>
               Launch swarm
             </Button>
           </div>
         </div>
       </div>
+
+      {pickerOpen && (
+        <RepoPicker onClose={() => setPickerOpen(false)} onSelect={(r) => { setRepo(r); setPickerOpen(false); }} />
+      )}
+      {clarifyOpen && (
+        <ClarifyChat goal={goal.trim()} repo={repo} onClose={() => setClarifyOpen(false)} onComplete={launchWithBrief} />
+      )}
     </div>
   );
 }

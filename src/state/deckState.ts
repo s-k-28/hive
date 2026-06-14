@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useSwarm } from './swarm';
 import { AGENT_ROSTER } from '../lib/types';
-import type { AgentVisualState, MissionStatus, TaskStatus } from '../lib/types';
+import type { AgentVisualState, MissionStatus, RepoRef, TaskSpecialist, TaskStatus } from '../lib/types';
 
 /**
  * Deck adapter. Projects the live `useSwarm` store (fed by InsForge realtime
@@ -20,6 +20,7 @@ export interface DeckTask {
   col: number; // dependency-depth column on the board
   deps: string[];
   assignee: string | null;
+  specialist: TaskSpecialist | null; // catalog expert assigned to this task
   status: TaskStatus;
   costCents: number;
   risk: boolean;
@@ -38,6 +39,7 @@ export interface DeckLogLine {
 export interface DeckState {
   phase: 'planning' | 'running' | 'done';
   goal: string;
+  repo: RepoRef | null; // GitHub repo this mission is scoped to, if any
   status: MissionStatus;
   budgetCents: number | null;
   spentCents: number;
@@ -164,6 +166,7 @@ export function useDeckState(): DeckState | null {
       col: colOf.get(t.id) ?? 0,
       deps: t.dependsOn,
       assignee: t.assignee,
+      specialist: t.specialist,
       status: t.status,
       costCents: t.costCents,
       risk: t.risk,
@@ -191,6 +194,7 @@ export function useDeckState(): DeckState | null {
     return {
       phase,
       goal: mission.goal,
+      repo: mission.repo,
       status: mission.status,
       budgetCents: mission.budgetCents,
       spentCents,
