@@ -215,7 +215,7 @@ export function GateLayer({ st }: { st: DeckState }) {
       title={isBudget ? 'Cost budget reached' : 'Step cap reached'}
       actions={
         isBudget ? (
-          <Button variant="primary" onClick={() => raiseBudget((st.budgetCents ?? 0) + 100)}>
+          <Button variant="primary" onClick={() => raiseBudget(Math.max(st.budgetCents ?? 0, st.spentCents) + 100)}>
             Raise +$1.00 and continue
           </Button>
         ) : (
@@ -277,7 +277,7 @@ function Steer({ st }: { st: DeckState | null }) {
         <Button variant="secondary" size="sm" onClick={() => pauseMission()}>
           Pause swarm
         </Button>
-        <Button variant="secondary" size="sm" onClick={() => raiseBudget((st.budgetCents ?? 0) + 100)}>
+        <Button variant="secondary" size="sm" onClick={() => raiseBudget(Math.max(st.budgetCents ?? 0, st.spentCents) + 100)}>
           +$1.00 budget
         </Button>
       </div>

@@ -1,7 +1,6 @@
 import React from 'react';
 
 const HEX_SIZE: Record<string, number> = { sm: 16, md: 19, lg: 26 };
-let UID = 0;
 
 /**
  * HIVE BrandMark (v2). The hexagon "hive" cell, stroked with the role-spectrum
@@ -26,14 +25,31 @@ export function BrandMark({
 }: BrandMarkProps) {
   const px = HEX_SIZE[size] || HEX_SIZE.md;
   const interactive = typeof rest.onClick === 'function';
-  const gid = React.useMemo(() => `hv-hexgrad-${UID++}`, []);
+  // useId is stable across renders/SSR and unique per instance; strip the colons
+  // React emits so the value is a valid SVG funciri id (url(#...)).
+  const gid = `hv-hexgrad-${React.useId().replace(/:/g, '')}`;
   const classes = ['hv-brand', `hv-brand--${size}`, interactive ? 'hv-brand--link' : '', className]
     .filter(Boolean)
     .join(' ');
   const stroke = mono ? 'var(--d-amber)' : `url(#${gid})`;
 
   return (
-    <span className={classes} role={interactive ? 'button' : undefined} {...rest}>
+    <span
+      className={classes}
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onKeyDown={
+        interactive
+          ? (e: React.KeyboardEvent<HTMLSpanElement>) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.currentTarget.click();
+              }
+            }
+          : undefined
+      }
+      {...rest}
+    >
       <span className="hv-brand-hex" aria-hidden="true">
         <svg width={px} height={px} viewBox="0 0 24 24" fill="none">
           {!mono && (

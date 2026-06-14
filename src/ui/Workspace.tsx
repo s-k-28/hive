@@ -161,13 +161,18 @@ function Stage({
 function LaunchBriefing() {
   const [goal, setGoal] = useState('');
   const [budget, setBudget] = useState('0.50');
+  const [error, setError] = useState<string | null>(null);
 
   const launch = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
     const dollars = parseFloat(budget);
     const budgetCents = Number.isFinite(dollars) && dollars > 0 ? Math.round(dollars * 100) : null;
-    startMission(trimmed, { budgetCents }).catch((err) => console.error('[hive] mission launch failed', err));
+    setError(null);
+    startMission(trimmed, { budgetCents }).catch((err) => {
+      console.error('[hive] mission launch failed', err);
+      setError(err instanceof Error ? err.message : 'Could not start the mission. Please try again.');
+    });
   };
 
   return (
@@ -222,6 +227,11 @@ function LaunchBriefing() {
               Launch swarm
             </Button>
           </div>
+          {error && (
+            <p role="alert" style={{ marginTop: 12, color: 'var(--d-red)', fontSize: 12.5 }}>
+              {error}
+            </p>
+          )}
         </div>
       </div>
     </div>
