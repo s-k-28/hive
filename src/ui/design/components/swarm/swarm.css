@@ -1,0 +1,155 @@
+/* =========================================================================
+   HIVE components: swarm (v2, luminous). The task card is a glass node that
+   GLOWS by status: a colored accent rail bleeds light into the card, running
+   nodes pull a cyan sheen + spinner, accepted nodes bloom green, the gated node
+   pulses magenta. The agent chip is an instrument light that breathes.
+   ========================================================================= */
+
+/* ---- Task card --------------------------------------------------------- */
+.hv-task {
+  --accent: var(--status-pending);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  width: 264px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  padding: 14px 15px 13px;
+  border-radius: var(--radius-xl);
+  color: var(--d-text);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 55%),
+    var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur-card));
+  -webkit-backdrop-filter: blur(var(--glass-blur-card));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-card), 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+  overflow: hidden;
+  transition: transform 0.22s var(--ease-spring), border-color var(--dur-slow) ease,
+    box-shadow var(--dur-slow) ease, opacity var(--dur-slow) ease;
+}
+.hv-task::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 16px var(--accent), 0 0 4px var(--accent);
+  transition: background var(--dur-slow) ease, box-shadow var(--dur-slow) ease;
+}
+.hv-task:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--glass-border));
+  box-shadow: var(--shadow-card-hover), 0 0 34px -14px var(--accent);
+}
+.hv-task[data-focused] {
+  border-color: rgba(245, 185, 74, 0.7);
+  box-shadow: 0 0 0 1px rgba(245, 185, 74, 0.4), var(--shadow-card-hover), 0 0 36px -12px rgba(245, 185, 74, 0.55);
+}
+
+/* per-status accents */
+.hv-task[data-status='pending']  { --accent: var(--status-pending); opacity: 0.84; }
+.hv-task[data-status='running']  { --accent: var(--d-live); }
+.hv-task[data-status='review']   { --accent: var(--d-amber); }
+.hv-task[data-status='accepted'] { --accent: var(--d-grn); }
+.hv-task[data-status='rejected'] { --accent: var(--d-red); }
+.hv-task[data-status='failed']   { --accent: var(--status-failed); }
+.hv-task[data-status='killed']   { --accent: var(--status-killed); opacity: 0.4; filter: saturate(0.5); }
+
+/* running: cyan glow + sweeping sheen */
+.hv-task[data-status='running'] {
+  border-color: color-mix(in srgb, var(--d-live) 44%, var(--glass-border));
+  box-shadow: var(--shadow-card), var(--glow-cyan);
+}
+.hv-task[data-status='running']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(52, 216, 241, 0.14) 50%, transparent 70%);
+  background-size: 220% 100%;
+  animation: d-sheen var(--loop-sheen) ease-in-out infinite;
+  pointer-events: none;
+}
+/* accepted: green bloom */
+.hv-task[data-status='accepted'] {
+  border-color: color-mix(in srgb, var(--d-grn) 40%, var(--glass-border));
+  box-shadow: var(--shadow-card), var(--glow-grn);
+}
+
+/* gate hold: pulsing magenta */
+.hv-task[data-gated] {
+  --accent: var(--d-mag);
+  border-color: rgba(227, 79, 208, 0.7);
+  animation: d-gate var(--loop-gate) ease-in-out infinite;
+}
+
+/* ---- Opt-in entrance bloom -------------------------------------------- */
+/* A surface wraps freshly-mounted cards in [data-bloom] to make them bloom
+   into the graph. The resting state above is always visible, so static usage,
+   reduced-motion, and print never depend on the animation running. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-bloom] > * { animation: d-card-in var(--dur-card-in) var(--ease-spring) both; }
+  [data-bloom] > *:nth-child(2) { animation-delay: 0.07s; }
+  [data-bloom] > *:nth-child(3) { animation-delay: 0.14s; }
+  [data-bloom] > *:nth-child(4) { animation-delay: 0.21s; }
+}
+
+.hv-task-top { display: flex; align-items: center; gap: 8px; }
+.hv-task-dot { position: relative; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); flex: none; }
+.hv-task-spin {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  border-top-color: var(--d-live);
+  border-right-color: color-mix(in srgb, var(--d-live) 40%, transparent);
+  animation: d-spin var(--loop-spin) linear infinite;
+}
+.hv-task-status { font-size: 10.5px; font-weight: var(--weight-semibold); letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent); }
+.hv-task[data-status='pending'] .hv-task-status,
+.hv-task[data-status='killed'] .hv-task-status { color: var(--d-dim); }
+.hv-task-risk {
+  margin-left: auto;
+  font-family: var(--d-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--d-mag);
+  background: rgba(227, 79, 208, 0.1);
+  border: 1px solid rgba(227, 79, 208, 0.42);
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+}
+.hv-task-risk[data-approved] { color: var(--d-grn); background: rgba(132, 227, 106, 0.1); border-color: rgba(132, 227, 106, 0.42); }
+.hv-task-title { font-size: 14px; font-weight: var(--weight-medium); line-height: 1.4; color: var(--d-text); }
+.hv-task-foot { display: flex; align-items: center; gap: 10px; font-family: var(--d-mono); font-size: 11px; }
+.hv-task-cost { color: rgba(238, 241, 248, 0.78); font-variant-numeric: tabular-nums; }
+.hv-task-cost[data-zero] { color: rgba(238, 241, 248, 0.32); }
+.hv-task-attempts { color: var(--d-amber); background: rgba(245, 185, 74, 0.09); border-radius: var(--radius-xs); padding: 1px 6px; }
+
+/* ---- Agent chip -------------------------------------------------------- */
+.hv-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--h-pill);
+  padding: 0 9px 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--d-faint);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.hv-agent:hover { background: rgba(255, 255, 255, 0.05); color: var(--d-dim); }
+.hv-agent[data-focused='true'] { border-color: var(--d-line-2); color: var(--d-text); background: rgba(255, 255, 255, 0.06); }
+.hv-agent-dot { width: 7px; height: 7px; border-radius: 50%; background: color-mix(in srgb, var(--dot) 40%, #2a2f3a); transition: background 0.3s ease, box-shadow 0.3s ease; flex: none; }
+.hv-agent[data-visual='thinking'] .hv-agent-dot { background: var(--dot); box-shadow: 0 0 10px var(--dot); animation: hv-blink 1s ease-in-out infinite; }
+.hv-agent[data-visual='complete'] .hv-agent-dot { background: var(--dot); box-shadow: 0 0 7px var(--dot); }
+.hv-agent[data-visual='error'] .hv-agent-dot { background: var(--d-red); box-shadow: 0 0 7px var(--d-red); }
+@keyframes hv-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }

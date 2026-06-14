@@ -1,0 +1,98 @@
+/* =========================================================================
+   HIVE color system (v2): luminous, not flat. Dark mode only (OLED).
+
+   A deep near-black canvas that GLOWS rather than sits flat: layered
+   transparency, soft inner light, and a living multi-hue gradient built from
+   the four agent role colors, so color stays meaningful. That spectrum is the
+   hero light-field, the glow behind active nodes, and the accent on edges and
+   CTAs. Amber is the primary brand accent.
+
+   Base ramp values are the source of truth; semantic aliases point at them.
+   Author UI against the aliases (--surface-panel, --text-dim, --accent).
+   ========================================================================= */
+
+:root {
+  /* ---- Canvas (deepest near-black to elevated, all luminous) ---------- */
+  --d-bg: #05060a;          /* deepest canvas / OLED floor */
+  --d-bg-1: #07080e;        /* base behind panels */
+  --d-panel: #0a0b12;       /* primary panel fill */
+  --d-panel-2: #0d0f18;     /* nested wells */
+  --d-elev: #12141f;        /* raised surfaces (modals, palette) */
+  --d-elev-2: #181b28;      /* highest elevation / hover fills */
+
+  /* ---- Borders: now luminous edges, not flat hairlines ---------------- */
+  --d-line: rgba(255, 255, 255, 0.08);
+  --d-line-2: rgba(255, 255, 255, 0.14);
+  --d-line-glow: rgba(245, 185, 74, 0.22); /* amber-lit edge */
+
+  /* ---- Ink ------------------------------------------------------------ */
+  --d-text: #eef1f8;
+  --d-dim: rgba(238, 241, 248, 0.62);
+  --d-faint: rgba(238, 241, 248, 0.36);
+  --d-ghost: rgba(238, 241, 248, 0.17);
+
+  /* ---- Signature accent (amber) --------------------------------------- */
+  --d-amber: #f5b94a;
+  --d-amber-bright: #ffce6e;
+  --d-amber-deep: #d99a2c;
+  --d-amber-ink: #1a1205;
+
+  /* ---- The role spectrum (load-bearing, also the gradient hues) ------- */
+  --d-gold: #f5b94a;   /* planner */
+  --d-live: #34d8f1;   /* worker + live data */
+  --d-mag: #e34fd0;    /* critic */
+  --d-grn: #84e36a;    /* assembler + accepted */
+  --d-red: #ff4d62;    /* failed / over-budget */
+
+  /* role aliases (agent identity == its color) */
+  --role-planner: var(--d-gold);
+  --role-worker: var(--d-live);
+  --role-critic: var(--d-mag);
+  --role-assembler: var(--d-grn);
+
+  /* ---- Status accents ------------------------------------------------- */
+  --status-pending: #4a5a7e;
+  --status-running: var(--d-live);
+  --status-review: var(--d-amber);
+  --status-accepted: var(--d-grn);
+  --status-rejected: var(--d-red);
+  --status-failed: #c12740;
+  --status-killed: #586379;
+
+  /* ---- The living gradient spectrum ----------------------------------- */
+  /* amber -> magenta -> cyan -> green, the hero light-field + CTA wash.   */
+  --grad-spectrum: linear-gradient(
+    100deg,
+    #f5b94a 0%, #e34fd0 34%, #34d8f1 66%, #84e36a 100%
+  ); /* @kind color */
+  --grad-spectrum-soft: linear-gradient(
+    100deg,
+    rgba(245, 185, 74, 0.85), rgba(227, 79, 208, 0.85),
+    rgba(52, 216, 241, 0.85), rgba(132, 227, 106, 0.85)
+  ); /* @kind color */
+  /* radial blooms for the drifting light-field (placed at different anchors) */
+  --bloom-amber: radial-gradient(closest-side, rgba(245, 185, 74, 0.5), transparent); /* @kind color */
+  --bloom-mag: radial-gradient(closest-side, rgba(227, 79, 208, 0.42), transparent); /* @kind color */
+  --bloom-cyan: radial-gradient(closest-side, rgba(52, 216, 241, 0.42), transparent); /* @kind color */
+  --bloom-grn: radial-gradient(closest-side, rgba(132, 227, 106, 0.36), transparent); /* @kind color */
+
+  /* ---- Semantic surface + text aliases -------------------------------- */
+  --surface-canvas: var(--d-bg);
+  --surface-panel: var(--d-panel);
+  --surface-panel-nested: var(--d-panel-2);
+  --surface-elevated: var(--d-elev);
+  --surface-hover: rgba(255, 255, 255, 0.05);
+  --surface-glass: rgba(12, 16, 30, 0.5);
+
+  --border-hairline: var(--d-line);
+  --border-strong: var(--d-line-2);
+
+  --text-primary: var(--d-text);
+  --text-secondary: var(--d-dim);
+  --text-muted: var(--d-faint);
+  --text-ghost: var(--d-ghost);
+
+  --accent: var(--d-amber);
+  --accent-press: var(--d-amber-deep);
+  --focus-ring: color-mix(in srgb, var(--d-amber) 75%, transparent);
+}

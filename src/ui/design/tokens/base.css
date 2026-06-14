@@ -1,0 +1,65 @@
+/* =========================================================================
+   HIVE base layer (v2). A light reset, the luminous dark canvas with a faint
+   grain wash, thin custom scrollbars, always-visible amber focus rings, the
+   scroll-reveal utility, and the reduced-motion path.
+   ========================================================================= */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  background: var(--d-bg);
+  color: var(--d-text);
+  font-family: var(--d-sans);
+  font-size: 15px;
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* A faint fixed grain over the whole canvas so deep blacks never band. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--grain);
+  background-size: 140px 140px;
+  opacity: 0.025;
+  mix-blend-mode: screen;
+}
+
+::selection { background: color-mix(in srgb, var(--d-amber) 32%, transparent); color: var(--d-text); }
+
+* { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.14) transparent; }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); background-clip: padding-box; }
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+a { color: inherit; }
+
+/* Scroll-reveal utility: JS adds `.in` when the element enters the viewport. */
+.d-reveal { opacity: 0; transform: translateY(26px); transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out); }
+.d-reveal.in { opacity: 1; transform: none; }
+
+/* Reduced motion: drop loops + parallax, keep states and quick transitions. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .d-reveal { opacity: 1 !important; transform: none !important; }
+}

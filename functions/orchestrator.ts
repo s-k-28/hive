@@ -177,6 +177,7 @@ async function recordCost(
     const cents = costCentsFor(modelId, usage);
 
     // Per-task cost: add to whatever the task already accrued (retries stack).
+    let taskTotal = 0;
     if (taskId) {
       const { data: tRows } = await db.database
         .from("tasks")
@@ -185,9 +186,10 @@ async function recordCost(
         .eq("id", taskId)
         .limit(1);
       const prior = Number(tRows?.[0]?.cost_cents ?? 0);
+      taskTotal = prior + cents;
       await db.database
         .from("tasks")
-        .update({ cost_cents: prior + cents })
+        .update({ cost_cents: taskTotal })
         .eq("mission_id", missionId)
         .eq("id", taskId);
     }
@@ -214,6 +216,10 @@ async function recordCost(
       budgetCents: m?.budget_cents ?? null,
       stepCount: steps,
       maxSteps: m?.max_steps ?? null,
+      // Per-task cost streamed live so the board + cost ledger fill during a
+      // run, not just on refetch. Null for planner/assembler (mission-level).
+      taskId: taskId ?? null,
+      taskCents: taskId ? taskTotal : null,
     });
   } catch (e) {
     console.error("recordCost failed (continuing)", e);

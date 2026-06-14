@@ -1,0 +1,40 @@
+/* =========================================================================
+   HIVE elevation + glow (v2). Surfaces are luminous: a soft inner top-light,
+   a deep dark drop, and signature colored glows that read as energy. Glass
+   blurs the light-field behind it. A faint grain keeps the dark from banding.
+   ========================================================================= */
+
+:root {
+  /* ---- Drop shadows: deep + soft, with an inner top-light ------------- */
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.06) inset,
+                 0 18px 44px -24px rgba(0, 0, 0, 0.85); /* @kind shadow */
+  --shadow-card-hover: 0 1px 0 rgba(255, 255, 255, 0.08) inset,
+                       0 28px 60px -26px rgba(0, 0, 0, 0.92); /* @kind shadow */
+  --shadow-panel: 0 50px 110px -55px rgba(0, 0, 0, 0.92),
+                  0 0 0 1px rgba(255, 255, 255, 0.03) inset; /* @kind shadow */
+  --shadow-modal: 0 40px 100px -42px rgba(0, 0, 0, 0.94),
+                  0 0 0 1px rgba(255, 255, 255, 0.04) inset; /* @kind shadow */
+  --shadow-cta: 0 14px 40px -12px rgba(245, 185, 74, 0.7); /* @kind shadow */
+
+  /* ---- Glass ---------------------------------------------------------- */
+  --glass-bg: rgba(12, 16, 30, 0.5);   /* @kind other */
+  --glass-border: rgba(255, 255, 255, 0.14); /* @kind other */
+  --glass-blur: 18px;                  /* @kind other */
+  --glass-blur-card: 20px;             /* @kind other */
+
+  /* ---- Signature glows ------------------------------------------------ */
+  --glow-amber: 0 0 14px rgba(245, 185, 74, 0.5);          /* @kind shadow */
+  --glow-amber-strong: 0 0 34px -2px rgba(245, 185, 74, 0.85); /* @kind shadow */
+  --glow-cyan: 0 0 34px -14px var(--d-live);               /* @kind shadow */
+  --glow-mag: 0 0 34px -14px var(--d-mag);                 /* @kind shadow */
+  --glow-grn: 0 0 34px -14px var(--d-grn);                 /* @kind shadow */
+  --glow-node: 0 0 10px currentColor;                      /* @kind shadow */
+
+  /* an animated hairline of amber light along a top edge */
+  --edge-amber: linear-gradient(90deg, transparent, rgba(245, 185, 74, 0.6), transparent); /* @kind other */
+  /* a spectrum edge for the hero / CTA underlines */
+  --edge-spectrum: linear-gradient(90deg, transparent, rgba(245,185,74,0.7), rgba(227,79,208,0.7), rgba(52,216,241,0.7), transparent); /* @kind other */
+
+  /* subtle grain (data-URI noise) layered over dark fields to stop banding */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E"); /* @kind other */
+}

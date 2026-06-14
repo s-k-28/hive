@@ -1,0 +1,24 @@
+/* =========================================================================
+   HIVE Design System: global entry point.
+
+   The single stylesheet consuming projects link. It is an import list only;
+   every token, font-face, and base rule lives in the files below. Author UI
+   against the semantic aliases in colors.css / typography.css / spacing.css.
+   ========================================================================= */
+
+@import url('./tokens/fonts.css');
+@import url('./tokens/colors.css');
+@import url('./tokens/typography.css');
+@import url('./tokens/spacing.css');
+@import url('./tokens/elevation.css');
+@import url('./tokens/motion.css');
+@import url('./tokens/base.css');
+
+/* ---- Component styles (paste-ready classes for each primitive) -------- */
+@import url('./components/brand/brand.css');
+@import url('./components/buttons/buttons.css');
+@import url('./components/indicators/indicators.css');
+@import url('./components/surfaces/surfaces.css');
+@import url('./components/instruments/instruments.css');
+@import url('./components/swarm/swarm.css');
+@import url('./components/feedback/feedback.css');

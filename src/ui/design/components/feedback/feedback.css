@@ -1,0 +1,60 @@
+/* =========================================================================
+   HIVE components: feedback (v2). The gate prompt, the signature stop-and-ask
+   moment. A glowing card with a colored badge halo pops in over a blurred,
+   darkened light-field. The card itself carries a faint tinted bloom.
+   ========================================================================= */
+
+.hv-gate-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 5, 8, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: hv-gate-fade var(--dur-mid) ease both;
+}
+@keyframes hv-gate-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.hv-gate {
+  --gate: var(--d-mag);
+  position: relative;
+  width: min(460px, 100%);
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--gate) 14%, transparent), transparent 55%),
+    linear-gradient(180deg, var(--d-elev), var(--d-panel-2));
+  border: 1px solid color-mix(in srgb, var(--gate) 50%, var(--d-line-2));
+  border-radius: var(--radius-xl);
+  padding: 19px;
+  box-shadow: var(--shadow-modal), 0 0 50px -18px color-mix(in srgb, var(--gate) 55%, transparent);
+  animation: d-gate var(--loop-gate) ease-in-out infinite;
+}
+/* The pop-in plays from hidden only where motion is allowed; the resting card
+   above is fully visible, so reduced-motion and print show it immediately. */
+@media (prefers-reduced-motion: no-preference) {
+  .hv-gate-wrap .hv-gate { animation: hv-gate-pop var(--dur-slow) var(--ease-spring) both, d-gate var(--loop-gate) ease-in-out infinite; }
+}
+@keyframes hv-gate-pop {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+.hv-gate-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.hv-gate-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px; height: 30px;
+  border-radius: 9px;
+  color: var(--gate);
+  background: color-mix(in srgb, var(--gate) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gate) 40%, transparent);
+  filter: drop-shadow(0 0 9px color-mix(in srgb, var(--gate) 60%, transparent));
+}
+.hv-gate-title { font-size: 16px; font-weight: var(--weight-semibold); color: var(--d-text); letter-spacing: -0.01em; }
+.hv-gate-body { font-size: 13px; line-height: 1.55; color: var(--d-dim); }
+.hv-gate-body strong { color: var(--d-text); font-weight: var(--weight-semibold); }
+.hv-gate-actions { display: flex; gap: 10px; margin-top: 15px; justify-content: flex-end; }

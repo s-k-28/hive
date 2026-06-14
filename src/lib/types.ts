@@ -96,7 +96,7 @@ export type SwarmEvent =
   | { type: 'mission_completed' }
   | { type: 'mission_failed'; reason: string }
   // --- control tower: governance, steering, observability ------------------
-  | { type: 'budget_updated'; spentCents: number; budgetCents: number | null; stepCount: number; maxSteps: number | null }
+  | { type: 'budget_updated'; spentCents: number; budgetCents: number | null; stepCount: number; maxSteps: number | null; taskId?: string | null; taskCents?: number | null }
   | { type: 'gate_tripped'; kind: 'budget' | 'steps' | 'risk'; taskId: string | null }
   | { type: 'intervention_applied'; kind: string; taskId: string | null; note: string | null }
   | { type: 'mission_paused' }
