@@ -34,10 +34,10 @@
   </g>
 
   <!-- top eyebrow -->
-  <g transform="translate(640,118)" text-anchor="middle">
-    <rect x="-150" y="-22" width="300" height="38" rx="19" fill="#120f1c" stroke="#34294f"/>
-    <circle cx="-118" cy="-3" r="4.5" fill="#9af57a"/>
-    <text x="6" y="3" fill="#c9c6e0" font-size="15" letter-spacing="3" font-weight="600">LIVE CONTROL TOWER FOR AI AGENTS</text>
+  <g transform="translate(640,118)">
+    <rect x="-184" y="-22" width="368" height="38" rx="19" fill="#120f1c" stroke="#34294f"/>
+    <circle cx="-150" cy="-3" r="4.5" fill="#9af57a"/>
+    <text x="-128" y="3" text-anchor="start" fill="#c9c6e0" font-size="14.5" letter-spacing="3" font-weight="600">LIVE CONTROL TOWER FOR AI AGENTS</text>
   </g>
 
   <!-- wordmark -->
