@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="720" viewBox="0 0 1320 720" font-family="'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0c0a14"/><stop offset="100%" stop-color="#070609"/></linearGradient>
+    <filter id="soft" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="20"/></filter>
+    <marker id="a" markerWidth="11" markerHeight="11" refX="8" refY="5" orient="auto"><path d="M0 0 L9 5 L0 10 z" fill="#8a88ad"/></marker>
+    <marker id="ag" markerWidth="11" markerHeight="11" refX="8" refY="5" orient="auto"><path d="M0 0 L9 5 L0 10 z" fill="#9af57a"/></marker>
+    <marker id="ar" markerWidth="11" markerHeight="11" refX="8" refY="5" orient="auto"><path d="M0 0 L9 5 L0 10 z" fill="#e8625a"/></marker>
+  </defs>
+  <rect width="1320" height="720" fill="url(#bg)"/>
+  <ellipse cx="660" cy="200" rx="520" ry="170" fill="#f5b94a" opacity="0.05" filter="url(#soft)"/>
+
+  <text x="60" y="60" fill="#f3f1fb" font-size="30" font-weight="700">The Control Tower — govern · steer · audit</text>
+  <text x="60" y="90" fill="#8d8aa8" font-size="16" font-family="ui-monospace, 'SF Mono', Menlo, monospace">three subsystems, all enforced in Postgres so the orchestrator stays a stateless tick</text>
+
+  <!-- three pillars -->
+  <g>
+    <!-- Gate engine -->
+    <rect x="60" y="120" width="380" height="220" rx="16" fill="#15110a" stroke="#6a541f"/>
+    <circle cx="96" cy="158" r="7" fill="#f5b94a"/>
+    <text x="116" y="163" fill="#f5d99a" font-size="19" font-weight="700">Gate engine</text>
+    <text x="84" y="190" fill="#9a97b6" font-size="13.5">the circuit breaker — checked at the</text>
+    <text x="84" y="210" fill="#9a97b6" font-size="13.5">top of every tick, before any dispatch</text>
+    <g font-size="13.5" fill="#e6e3f2">
+      <text x="84" y="244">▸ cost budget  →  hit it, mission pauses</text>
+      <text x="84" y="270">▸ step cap  →  hit it, mission pauses</text>
+      <text x="84" y="296">▸ risk step  →  holds for approval</text>
+    </g>
+    <text x="84" y="324" fill="#6f6c88" font-size="11.5" font-family="ui-monospace,monospace">nothing runs forever · nothing runs unwatched</text>
+
+    <!-- Steering plane -->
+    <rect x="470" y="120" width="380" height="220" rx="16" fill="#160512" stroke="#7a2a63"/>
+    <circle cx="506" cy="158" r="7" fill="#e34fd0"/>
+    <text x="526" y="163" fill="#f3a8e6" font-size="19" font-weight="700">Steering plane</text>
+    <text x="494" y="190" fill="#9a97b6" font-size="13.5">live human control — every action is an</text>
+    <text x="494" y="210" fill="#9a97b6" font-size="13.5">interventions row that kicks the tick</text>
+    <g font-size="13.5" fill="#e6e3f2">
+      <text x="494" y="244">▸ pause · resume · raise budget</text>
+      <text x="494" y="270">▸ kill a task · approve / deny a gate</text>
+      <text x="494" y="296">▸ inject a constraint → agents re-plan</text>
+    </g>
+    <text x="494" y="324" fill="#6f6c88" font-size="11.5" font-family="ui-monospace,monospace">guarded · idempotent · drained in order</text>
+
+    <!-- Causal inspector -->
+    <rect x="880" y="120" width="380" height="220" rx="16" fill="#0a1410" stroke="#2f6a4a"/>
+    <circle cx="916" cy="158" r="7" fill="#9af57a"/>
+    <text x="936" y="163" fill="#c4f5af" font-size="19" font-weight="700">Causal inspector</text>
+    <text x="904" y="190" fill="#9a97b6" font-size="13.5">the flight recorder — click any task</text>
+    <text x="904" y="210" fill="#9a97b6" font-size="13.5">to see exactly why it ran</text>
+    <g font-size="13.5" fill="#e6e3f2">
+      <text x="904" y="244">▸ its dependencies + recalled memories</text>
+      <text x="904" y="270">▸ its rendered output + live cost</text>
+      <text x="904" y="296">▸ the full chain of events that touched it</text>
+    </g>
+    <text x="904" y="324" fill="#6f6c88" font-size="11.5" font-family="ui-monospace,monospace">a complete causal record, per task</text>
+  </g>
+
+  <!-- The signature moment: gate state machine -->
+  <text x="60" y="410" fill="#f3f1fb" font-size="22" font-weight="700">The signature moment — the swarm stops itself and asks</text>
+
+  <g transform="translate(0,470)" font-size="14" font-weight="600">
+    <!-- running -->
+    <rect x="80" y="0" width="170" height="74" rx="14" fill="#04181c" stroke="#22d3ee"/>
+    <text x="165" y="32" text-anchor="middle" fill="#9aeaf5" font-size="16">running</text>
+    <text x="165" y="54" text-anchor="middle" fill="#6fb6c2" font-size="11.5">workers dispatching</text>
+
+    <line x1="250" y1="37" x2="338" y2="37" stroke="#8a88ad" stroke-width="2" marker-end="url(#a)"/>
+    <text x="294" y="26" text-anchor="middle" fill="#cdb878" font-size="11" font-family="ui-monospace,monospace">risk step</text>
+
+    <!-- awaiting -->
+    <rect x="340" y="0" width="210" height="74" rx="14" fill="#15110a" stroke="#f5b94a" stroke-width="2"/>
+    <text x="445" y="30" text-anchor="middle" fill="#f5d99a" font-size="16">awaiting_input ⛔</text>
+    <text x="445" y="52" text-anchor="middle" fill="#cdb878" font-size="11.5">frozen — nothing runs until you decide</text>
+
+    <!-- approve -->
+    <line x1="550" y1="28" x2="690" y2="14" stroke="#9af57a" stroke-width="2" marker-end="url(#ag)"/>
+    <text x="618" y="6" text-anchor="middle" fill="#8fcf78" font-size="11" font-family="ui-monospace,monospace">approve (+inject)</text>
+    <rect x="694" y="-18" width="190" height="56" rx="12" fill="#0c1c06" stroke="#9af57a"/>
+    <text x="789" y="6" text-anchor="middle" fill="#c4f5af" font-size="14">resume → running</text>
+    <text x="789" y="26" text-anchor="middle" fill="#8fcf78" font-size="11">live, on the real backend</text>
+
+    <!-- deny -->
+    <line x1="550" y1="48" x2="690" y2="78" stroke="#e8625a" stroke-width="2" marker-end="url(#ar)"/>
+    <text x="618" y="86" text-anchor="middle" fill="#d77a72" font-size="11" font-family="ui-monospace,monospace">deny</text>
+    <rect x="694" y="58" width="190" height="48" rx="12" fill="#1a0908" stroke="#e8625a"/>
+    <text x="789" y="80" text-anchor="middle" fill="#f0a59e" font-size="14">task killed (terminal)</text>
+    <text x="789" y="98" text-anchor="middle" fill="#b06a64" font-size="11">swarm continues around it</text>
+
+    <!-- audit -->
+    <rect x="930" y="-10" width="330" height="92" rx="14" fill="#0a1410" stroke="#2f6a4a"/>
+    <text x="1095" y="20" text-anchor="middle" fill="#c4f5af" font-size="14" font-weight="700">every transition → events row</text>
+    <text x="1095" y="44" text-anchor="middle" fill="#bdb9d8" font-size="12.5">streamed live · fully replayable</text>
+    <text x="1095" y="66" text-anchor="middle" fill="#6f6c88" font-size="11.5" font-family="ui-monospace,monospace">accountable by construction</text>
+  </g>
+</svg>

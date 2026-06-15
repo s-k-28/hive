@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" font-family="'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="36%" r="80%">
+      <stop offset="0%" stop-color="#15101f"/>
+      <stop offset="55%" stop-color="#0a0a12"/>
+      <stop offset="100%" stop-color="#060609"/>
+    </radialGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="55%" stop-color="#cdb6ff"/>
+      <stop offset="100%" stop-color="#863bff"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="14" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="26"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#bg)"/>
+
+  <!-- ambient glows -->
+  <ellipse cx="250" cy="120" rx="260" ry="180" fill="#863bff" opacity="0.16" filter="url(#soft)"/>
+  <ellipse cx="1040" cy="540" rx="280" ry="200" fill="#22d3ee" opacity="0.10" filter="url(#soft)"/>
+
+  <!-- hex lattice motif -->
+  <g stroke="#2a2440" stroke-width="1.2" fill="none" opacity="0.5">
+    <path d="M120 470 l26 -15 26 15 0 30 -26 15 -26 -15 z"/>
+    <path d="M172 440 l26 -15 26 15 0 30 -26 15 -26 -15 z"/>
+    <path d="M1080 110 l24 -14 24 14 0 28 -24 14 -24 -14 z" stroke="#3a2f5a"/>
+    <path d="M1128 138 l24 -14 24 14 0 28 -24 14 -24 -14 z" stroke="#3a2f5a"/>
+  </g>
+
+  <!-- top eyebrow -->
+  <g transform="translate(640,118)" text-anchor="middle">
+    <rect x="-150" y="-22" width="300" height="38" rx="19" fill="#120f1c" stroke="#34294f"/>
+    <circle cx="-118" cy="-3" r="4.5" fill="#9af57a"/>
+    <text x="6" y="3" fill="#c9c6e0" font-size="15" letter-spacing="3" font-weight="600">LIVE CONTROL TOWER FOR AI AGENTS</text>
+  </g>
+
+  <!-- wordmark -->
+  <g text-anchor="middle">
+    <text x="640" y="320" font-size="210" font-weight="700" letter-spacing="8" fill="url(#title)" filter="url(#glow)">HIVE</text>
+  </g>
+
+  <!-- tagline -->
+  <text x="640" y="392" text-anchor="middle" fill="#e9e7f5" font-size="30" font-weight="500">Hand a swarm of AI agents a goal — watch them</text>
+  <text x="640" y="430" text-anchor="middle" fill="#a9a6c2" font-size="30" font-weight="400">plan, build, self-review, and ship it live. You can <tspan fill="#f5b94a">see</tspan>, <tspan fill="#e34fd0">stop</tspan>, and <tspan fill="#22d3ee">steer</tspan> every step.</text>
+
+  <!-- role chips -->
+  <g transform="translate(640,500)" text-anchor="middle" font-size="16" font-weight="600">
+    <g transform="translate(-330,0)"><rect x="-58" y="-18" width="116" height="36" rx="18" fill="#1a1606" stroke="#f5b94a" stroke-opacity="0.6"/><circle cx="-38" cy="0" r="5" fill="#f5b94a"/><text x="6" y="5" fill="#f5d99a">Planner</text></g>
+    <g transform="translate(-150,0)"><rect x="-62" y="-18" width="124" height="36" rx="18" fill="#04181c" stroke="#22d3ee" stroke-opacity="0.6"/><circle cx="-44" cy="0" r="5" fill="#22d3ee"/><text x="6" y="5" fill="#9aeaf5">Workers ×3</text></g>
+    <g transform="translate(30,0)"><rect x="-50" y="-18" width="100" height="36" rx="18" fill="#1c0518" stroke="#e34fd0" stroke-opacity="0.6"/><circle cx="-32" cy="0" r="5" fill="#e34fd0"/><text x="6" y="5" fill="#f3a8e6">Critic</text></g>
+    <g transform="translate(200,0)"><rect x="-62" y="-18" width="124" height="36" rx="18" fill="#0c1c06" stroke="#9af57a" stroke-opacity="0.6"/><circle cx="-44" cy="0" r="5" fill="#9af57a"/><text x="6" y="5" fill="#c4f5af">Assembler</text></g>
+    <g transform="translate(360,0)"><rect x="-46" y="-18" width="92" height="36" rx="18" fill="#0f0a1c" stroke="#863bff" stroke-opacity="0.7"/><circle cx="-28" cy="0" r="5" fill="#863bff"/><text x="6" y="5" fill="#c3aaff">Gate</text></g>
+  </g>
+
+  <!-- footer -->
+  <g transform="translate(640,582)" text-anchor="middle">
+    <text x="0" y="0" fill="#7c7a93" font-size="17" font-family="ui-monospace, 'SF Mono', Menlo, monospace">Runs entirely on <tspan fill="#a98bff" font-weight="600">InsForge</tspan>  ·  Postgres · Edge Functions · AI Gateway · pgvector · Realtime  ·  InsForge Hack 2026</text>
+  </g>
+</svg>

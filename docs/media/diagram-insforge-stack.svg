@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="760" viewBox="0 0 1320 760" font-family="'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0c0a14"/><stop offset="100%" stop-color="#070609"/></linearGradient>
+    <filter id="soft" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="24"/></filter>
+  </defs>
+  <rect width="1320" height="760" fill="url(#bg)"/>
+  <ellipse cx="660" cy="380" rx="560" ry="260" fill="#863bff" opacity="0.08" filter="url(#soft)"/>
+
+  <text x="60" y="62" fill="#f3f1fb" font-size="30" font-weight="700">Every InsForge primitive, composed into one living system</text>
+  <text x="60" y="92" fill="#8d8aa8" font-size="16" font-family="ui-monospace, 'SF Mono', Menlo, monospace">not one primitive used well — the whole platform wired into a single product · every row is real and exercised on each run</text>
+
+  <!-- cards 4 x 2 -->
+  <g font-family="'Space Grotesk', system-ui, sans-serif">
+    <!-- row 1 -->
+    <g transform="translate(60,130)">
+      <rect width="290" height="170" rx="16" fill="#0e1018" stroke="#2a3c44"/>
+      <text x="22" y="44" fill="#5fb8c8" font-size="18" font-weight="700" font-family="ui-monospace,monospace">Postgres</text>
+      <text x="22" y="74" fill="#dedcec" font-size="13">message bus · task queue · memory</text>
+      <text x="22" y="98" fill="#9a97b6" font-size="12">missions · tasks (a dependency DAG)</text>
+      <text x="22" y="118" fill="#9a97b6" font-size="12">events (append-only) · interventions</text>
+      <text x="22" y="138" fill="#9a97b6" font-size="12">memories · connections</text>
+      <text x="22" y="158" fill="#6f6c88" font-size="11" font-family="ui-monospace,monospace">the write IS the broadcast</text>
+    </g>
+    <g transform="translate(370,130)">
+      <rect width="290" height="170" rx="16" fill="#120f1c" stroke="#34294f"/>
+      <text x="22" y="44" fill="#c3aaff" font-size="18" font-weight="700" font-family="ui-monospace,monospace">Edge Function</text>
+      <text x="22" y="74" fill="#dedcec" font-size="13">ONE orchestrator runs the whole swarm</text>
+      <text x="22" y="98" fill="#9a97b6" font-size="12">planner · workers · critic · assembler</text>
+      <text x="22" y="118" fill="#9a97b6" font-size="12">all inline in one race-safe tick</text>
+      <text x="22" y="138" fill="#9a97b6" font-size="12">(fn-to-fn calls are blocked → inline)</text>
+      <text x="22" y="158" fill="#6f6c88" font-size="11" font-family="ui-monospace,monospace">idempotent · re-invokable</text>
+    </g>
+    <g transform="translate(680,130)">
+      <rect width="290" height="170" rx="16" fill="#0e1018" stroke="#2a3c44"/>
+      <text x="22" y="44" fill="#5fb8c8" font-size="18" font-weight="700" font-family="ui-monospace,monospace">AI Gateway</text>
+      <text x="22" y="74" fill="#dedcec" font-size="13">all reasoning + embeddings</text>
+      <text x="22" y="98" fill="#9a97b6" font-size="12">InsForge-managed OpenRouter key</text>
+      <text x="22" y="118" fill="#9a97b6" font-size="12">GPT-4o plans/reviews · Haiku works</text>
+      <text x="22" y="138" fill="#9a97b6" font-size="12">text-embedding-3-small for memory</text>
+      <text x="22" y="158" fill="#6f6c88" font-size="11" font-family="ui-monospace,monospace">per-project spend caps</text>
+    </g>
+    <g transform="translate(990,130)">
+      <rect width="290" height="170" rx="16" fill="#0f0c1c" stroke="#3a2f5a"/>
+      <text x="22" y="44" fill="#a98bff" font-size="18" font-weight="700" font-family="ui-monospace,monospace">pgvector</text>
+      <text x="22" y="74" fill="#dedcec" font-size="13">shared swarm memory</text>
+      <text x="22" y="98" fill="#9a97b6" font-size="12">agents store what they learn</text>
+      <text x="22" y="118" fill="#9a97b6" font-size="12">later agents recall it by meaning</text>
+      <text x="22" y="138" fill="#9a97b6" font-size="12">match_memories RPC · HNSW · cosine</text>
+      <text x="22" y="158" fill="#6f6c88" font-size="11" font-family="ui-monospace,monospace">1536-dim · semantic recall</text>
+    </g>
+
+    <!-- row 2 -->
+    <g transform="translate(60,330)">
+      <rect width="290" height="170" rx="16" fill="#10131c" stroke="#2f4a44"/>
+      <text x="22" y="44" fill="#7fe6c0" font-size="18" font-weight="700" font-family="ui-monospace,monospace">Realtime</text>
+      <text x="22" y="74" fill="#dedcec" font-size="13">a DB trigger publishes every</text>
+      <text x="22" y="98" fill="#9a97b6" font-size="12">events row to channel mission:{id}</text>
+      <text x="22" y="118" fill="#9a97b6" font-size="12">board · cost meter · gate prompt</text>
+      <text x="22" y="138" fill="#9a97b6" font-size="12">all react live, in the same instant</text>
+      <text x="22" y="158" fill="#6f6c88" font-size="11" font-family="ui-monospace,monospace">you watch the swarm think</text>
+    </g>
+    <g transform="translate(370,330)">
+      <rect width="290" height="170" rx="16" fill="#11101b" stroke="#3a3550"/>
+      <text x="22" y="44" fill="#d9d6ea" font-size="18" font-weight="700" font-family="ui-monospace,monospace">Auth</text>
+      <text x="22" y="74" fill="#dedcec" font-size="13">missions scoped to the signed-in</text>
+      <text x="22" y="98" fill="#9a97b6" font-size="12">user via row-level security</text>
+      <text x="22" y="118" fill="#9a97b6" font-size="12">anonymous demo runs allowed too</text>
+      <text x="22" y="158" fill="#6f6c88" font-size="11" font-family="ui-monospace,monospace">browser requests · admin applies</text>
+    </g>
+    <g transform="translate(680,330)">
+      <rect width="290" height="170" rx="16" fill="#0c1c06" stroke="#3a6a2a"/>
+      <text x="22" y="44" fill="#9af57a" font-size="18" font-weight="700" font-family="ui-monospace,monospace">Storage</text>
+      <text x="22" y="74" fill="#dedcec" font-size="13">the final deliverable is written</text>
+      <text x="22" y="98" fill="#9a97b6" font-size="12">to the artifacts bucket</text>
+      <text x="22" y="118" fill="#9a97b6" font-size="12">opened or downloaded straight</text>
+      <text x="22" y="138" fill="#9a97b6" font-size="12">from the cockpit</text>
+      <text x="22" y="158" fill="#6f6c88" font-size="11" font-family="ui-monospace,monospace">real output, every run</text>
+    </g>
+    <g transform="translate(990,330)">
+      <rect width="290" height="170" rx="16" fill="#0f0c1c" stroke="#3a2f5a"/>
+      <text x="22" y="44" fill="#a98bff" font-size="18" font-weight="700" font-family="ui-monospace,monospace">Hosting</text>
+      <text x="22" y="74" fill="#dedcec" font-size="13">the site is deployed through</text>
+      <text x="22" y="98" fill="#9a97b6" font-size="12">InsForge deployments</text>
+      <text x="22" y="118" fill="#9a97b6" font-size="12">one platform, end to end</text>
+      <text x="22" y="158" fill="#6f6c88" font-size="11" font-family="ui-monospace,monospace">frontend + backend + AI</text>
+    </g>
+  </g>
+
+  <!-- proof bar -->
+  <g transform="translate(60,560)">
+    <rect width="1220" height="150" rx="18" fill="#0d0b16" stroke="#2c2a40"/>
+    <text x="30" y="44" fill="#f3f1fb" font-size="18" font-weight="700">A single launch — provably — mutates the entire stack:</text>
+    <g font-size="14" fill="#cfcde0">
+      <text x="30" y="78">writes a mission row · advances a task DAG · streams hundreds of events · stores vector memories ·</text>
+      <text x="30" y="104">applies a human steering intervention · enforces a live risk gate · uploads a real artifact to Storage.</text>
+    </g>
+    <text x="30" y="134" fill="#7fe6c0" font-size="13" font-family="ui-monospace,monospace">tsc strict · eslint 0 issues · 40 unit tests green · validated live in a real browser, zero console errors</text>
+  </g>
+</svg>
